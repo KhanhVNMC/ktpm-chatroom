@@ -1,6 +1,7 @@
 package dev.ktpm;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+
 import dev.ktpm.impl.jpa.HibernateRuntime;
 import io.javalin.Javalin;
 import io.javalin.json.JavalinJackson;

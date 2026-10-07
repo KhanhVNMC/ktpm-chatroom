@@ -1,4 +1,4 @@
-package dev.ktpm.impl.jpa;
+package dev.ktpm.impl.jpa.entities;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Embeddable;
@@ -14,8 +14,11 @@ import java.util.UUID;
 @Getter @Setter
 @NoArgsConstructor
 public class RoomMembershipId implements Serializable {
+	private static final long serialVersionUID = 1L;
+	
 	@Column(name = "room_uuid")
 	private UUID roomUUID;
+	
 	@Column(name = "user_uuid")
 	private UUID userUUID;
 

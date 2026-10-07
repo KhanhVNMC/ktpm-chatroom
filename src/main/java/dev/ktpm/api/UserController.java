@@ -7,7 +7,6 @@ import io.javalin.http.HttpStatus;
 import io.javalin.router.JavalinDefaultRoutingApi;
 
 public class UserController {
-
 	private final IUserService userService;
 	private final IAuthenticationService authService;
 

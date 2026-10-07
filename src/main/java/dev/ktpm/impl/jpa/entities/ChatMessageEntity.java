@@ -1,4 +1,4 @@
-package dev.ktpm.impl.jpa;
+package dev.ktpm.impl.jpa.entities;
 
 import dev.ktpm.model.ChatMessage;
 import jakarta.persistence.CollectionTable;
@@ -17,9 +17,7 @@ import lombok.NoArgsConstructor;
 import lombok.AccessLevel;
 import lombok.Setter;
 
-import java.net.MalformedURLException;
 import java.net.URI;
-import java.time.Instant;
 import java.util.List;
 import java.util.UUID;
 
@@ -32,10 +30,9 @@ public class ChatMessageEntity {
 	@Column(name = "chat_message_uuid")
 	private UUID chatMessageUUID;
 	
-	@CurrentTimestamp(event = EventType.INSERT, source = SourceType.DB)
-	@Column(name = "sent_timestamp", columnDefinition = "timestamp with time zone", nullable = false)
 	@Setter(AccessLevel.NONE)
-	private Instant sentTimestamp;
+	@Column(name = "sent_timestamp", nullable = false)
+	private long sentTimestamp;
 	
 	@Column(name = "sender_uuid", nullable = false)
 	private UUID senderUUID;
@@ -53,26 +50,23 @@ public class ChatMessageEntity {
 	@OrderColumn(name = "attachment_order")
 	@Column(name = "attachment_url")
 	private List<String> attachments;
-
+	
 	public static ChatMessageEntity fromModel(ChatMessage model) {
 		var entity = new ChatMessageEntity();
 		entity.chatMessageUUID = model.chatMessageUUID();
+		entity.sentTimestamp = model.sentTimestamp();
 		entity.chatRoomUUID = model.chatRoomUUID();
 		entity.senderUUID = model.sender();
 		entity.content = model.content();
 		entity.attachments = model.attachments().stream().map(URI::toString).toList();
 		return entity;
 	}
-
-	public ChatMessage toModel() throws MalformedURLException {
-		List<URI> uris = attachments.stream().map(value -> {
-			return URI.create(value);
-		}).toList();
+	
+	public ChatMessage toModel() {
 		return new ChatMessage(
-			this.chatMessageUUID, 
-			this.sentTimestamp.toEpochMilli(),
+			this.chatMessageUUID, this.sentTimestamp,
 			this.chatRoomUUID, this.senderUUID, 
-			this.content, uris
+			this.content, attachments.stream().map(value -> URI.create(value)).toList()
 		);
 	}
 }

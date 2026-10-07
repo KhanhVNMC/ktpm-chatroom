@@ -1,4 +1,4 @@
-package dev.ktpm.impl.jpa;
+package dev.ktpm.impl.jpa.entities;
 
 import dev.ktpm.model.UserCredentials;
 import jakarta.persistence.Column;

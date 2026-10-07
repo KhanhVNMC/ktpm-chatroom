@@ -1,15 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!DOCTYPE hibernate-configuration PUBLIC
-        "-//Hibernate/Hibernate Configuration DTD 3.0//EN"
-        "http://www.hibernate.org/dtd/hibernate-configuration-3.0.dtd">
+<!DOCTYPE hibernate-configuration PUBLIC "-//Hibernate/Hibernate Configuration DTD 3.0//EN" "http://www.hibernate.org/dtd/hibernate-configuration-3.0.dtd">
 <hibernate-configuration>
-    <session-factory>
-        <property name="hibernate.connection.driver_class">org.postgresql.Driver</property>
-        <property name="hibernate.connection.url">jdbc:postgresql://localhost:5432/ktpm_chat</property>
-        <property name="hibernate.connection.username">postgres</property>
-        <property name="hibernate.connection.password">postgres</property>
-        <property name="hibernate.hbm2ddl.auto">update</property>
-        <property name="hibernate.show_sql">false</property>
-        <property name="hibernate.format_sql">true</property>
-    </session-factory>
+	<session-factory>
+		<property name="hibernate.connection.driver_class">org.postgresql.Driver</property>
+		<property name="hibernate.connection.url">
+			jdbc:postgresql://localhost:5432/ktpm_chat</property>
+		<property name="hibernate.connection.username">postgres</property>
+		<property name="hibernate.connection.password">123</property>
+		<property name="hibernate.hbm2ddl.auto">update</property>
+		<property name="hibernate.show_sql">false</property>
+		<property name="hibernate.format_sql">true</property>
+		<mapping class="dev.ktpm.impl.jpa.UserEntity" />
+		<mapping class="dev.ktpm.impl.jpa.UserCredentialsEntity" />
+		<mapping class="dev.ktpm.impl.jpa.ChatRoomEntity" />
+		<mapping class="dev.ktpm.impl.jpa.RoomMembershipEntity" />
+		<mapping class="dev.ktpm.impl.jpa.SessionEntity" />
+		<mapping class="dev.ktpm.impl.jpa.ChatMessageEntity" />
+		<mapping class="dev.ktpm.impl.jpa.AttachmentAssetEntity" />
+	</session-factory>
 </hibernate-configuration>

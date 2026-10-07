@@ -1,3 +1,5 @@
 package dev.ktpm.model;
 
-public record AttachmentAsset(byte[] attachment, long size) {}
+import java.util.UUID;
+
+public record AttachmentAsset(UUID uuid, byte[] attachment, long size) {}

@@ -20,6 +20,7 @@
         <jackson.version>2.19.2</jackson.version>
         <slf4j.version>2.0.17</slf4j.version>
         <junit.version>5.11.0</junit.version>
+		<lombok.version>1.18.42</lombok.version>
     </properties>
 
     <dependencies>
@@ -36,6 +37,14 @@
             <artifactId>hibernate-core</artifactId>
             <version>${hibernate.version}</version>
         </dependency>
+
+		<!-- Lombok annotations and compile-time accessor generation -->
+		<dependency>
+			<groupId>org.projectlombok</groupId>
+			<artifactId>lombok</artifactId>
+			<version>${lombok.version}</version>
+			<scope>provided</scope>
+		</dependency>
 
         <!-- PostgreSQL JDBC Driver -->
         <dependency>
@@ -75,6 +84,13 @@
                 <version>3.13.0</version>
                 <configuration>
                     <release>21</release>
+					<annotationProcessorPaths>
+						<path>
+							<groupId>org.projectlombok</groupId>
+							<artifactId>lombok</artifactId>
+							<version>${lombok.version}</version>
+						</path>
+					</annotationProcessorPaths>
                 </configuration>
             </plugin>
             <plugin>

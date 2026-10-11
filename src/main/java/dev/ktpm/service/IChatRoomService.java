@@ -15,6 +15,11 @@ public interface IChatRoomService {
 	void leaveRoom(UUID userUUID, UUID roomUUID,
 		boolean silentLeave, Optional<String> reason
 	);
-	
+
+	void deleteRoom(
+			UUID requesterUUID,
+			UUID roomUUID
+	);
+
 	RoomOverviewResponse getOverview(UUID requester, UUID roomUUID);
 }

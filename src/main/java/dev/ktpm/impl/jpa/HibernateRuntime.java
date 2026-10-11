@@ -5,8 +5,6 @@ import org.hibernate.cfg.Configuration;
 
 import jakarta.persistence.EntityManager;
 import jakarta.persistence.EntityTransaction;
-import lombok.Getter;
-import lombok.experimental.Accessors;
 
 public final class HibernateRuntime implements AutoCloseable {
 	private final SessionFactory sessionFactory;

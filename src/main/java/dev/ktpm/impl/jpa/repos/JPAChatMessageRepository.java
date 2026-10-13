@@ -81,7 +81,7 @@ public class JPAChatMessageRepository implements IChatMessageRepository {
 			var query = man.eman.createQuery("""
 				SELECT m FROM ChatMessageEntity m
 				WHERE m.chatRoomUUID = :room_uuid
-				""" + (before == null ? "" : """
+				""" + (before == null ? "" : /* if msg id is null, ret newest */ """
 				AND m.sentTimestamp <= :before_timestamp
 				AND m.chatMessageUUID != :before_message
 				""") + """
@@ -92,10 +92,9 @@ public class JPAChatMessageRepository implements IChatMessageRepository {
 				query.setParameter("before_timestamp", before.getSentTimestamp())
 				.setParameter("before_message", beforeMessage);
 			}
-			return query
-			.setMaxResults(limit)
-			.getResultList().stream()
-			.map(ChatMessageEntity::toModel).toList(); // list order is newest -> oldest
+			return query.setMaxResults(limit).getResultList().stream()
+				.map(ChatMessageEntity::toModel)
+			.toList(); // list order is newest -> oldest
 		}
 	}
 }

@@ -44,6 +44,7 @@ public class JPAChatRoomRepository implements IChatRoomRepository {
 			existing.setOwnerUUID(room.owner());
 			existing.setMotd(room.motd());
 			existing.setPublic(room.isPublic());
+			existing.setInviteCode(room.inviteCode());
 			return existing.toModel();
 		}
 	}

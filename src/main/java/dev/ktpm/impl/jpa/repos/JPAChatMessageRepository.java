@@ -67,23 +67,32 @@ public class JPAChatMessageRepository implements IChatMessageRepository {
 	@Override
 	public List<ChatMessage> getHistory(UUID roomUUID, UUID beforeMessage, int limit) {
 		try (var man = runtime.open()) {
-			var before = man.eman.find(ChatMessageEntity.class, beforeMessage);
-			if (before == null) {
-				return List.of();
+			ChatMessageEntity before = null;
+			if (beforeMessage != null) {
+				before = man.eman.find(ChatMessageEntity.class, beforeMessage);
+				if (before == null) {
+					return List.of();
+				}
 			}
 			// return all message that is before or at the beforeMsg sent time
 			// this is not good for exact OoI (same ms) because fuck you thats why...
 			// but hey, AT LEAST its deterministic
-			return man.eman.createQuery("""
+			// beforeMessage == null thì lấy từ tin mới nhất
+			var query = man.eman.createQuery("""
 				SELECT m FROM ChatMessageEntity m
 				WHERE m.chatRoomUUID = :room_uuid
+				""" + (before == null ? "" : """
 				AND m.sentTimestamp <= :before_timestamp
 				AND m.chatMessageUUID != :before_message
+				""") + """
 				ORDER BY m.sentTimestamp DESC, m.chatMessageUUID DESC
 			""", ChatMessageEntity.class)
-			.setParameter("room_uuid", roomUUID)
-			.setParameter("before_timestamp", before.getSentTimestamp())
-			.setParameter("before_message", beforeMessage)
+			.setParameter("room_uuid", roomUUID);
+			if (before != null) {
+				query.setParameter("before_timestamp", before.getSentTimestamp())
+				.setParameter("before_message", beforeMessage);
+			}
+			return query
 			.setMaxResults(limit)
 			.getResultList().stream()
 			.map(ChatMessageEntity::toModel).toList(); // list order is newest -> oldest

@@ -3,36 +3,56 @@ package dev.ktpm.api;
 import dev.ktpm.service.IAuthenticationService;
 import dev.ktpm.service.IUserService;
 import io.javalin.http.Context;
-import io.javalin.http.HttpStatus;
 import io.javalin.router.JavalinDefaultRoutingApi;
 
 public class AuthController {
 	private final IAuthenticationService authService;
 	private final IUserService userService;
-
+	
 	public AuthController(IAuthenticationService authService, IUserService userService) {
 		this.authService = authService;
 		this.userService = userService;
 	}
-
+	
 	public void registerRoutes(JavalinDefaultRoutingApi router) {
-		router.post("/api/auth/login", this::login);
-		router.post("/api/auth/logout", this::logout);
-		router.get("/api/auth/me", this::getMe);
+		router.post("/api/auth/register", Sputnik.handle(this::register));
+		router.post("/api/auth/login", Sputnik.handle(this::login));
+		router.post("/api/auth/logout", Sputnik.handle(this::logout));
+		router.get("/api/auth/me", Sputnik.handle(this::getMe));
 	}
-
+	
+	public void register(Context ctx) {
+		var body = Sputnik.body(ctx);
+		String username = Sputnik.require(body, "username");
+		String displayName = Sputnik.text(body, "display_name");
+		var user = authService.register(username, 
+			displayName != null ? displayName : username, 
+			Sputnik.require(body, "password")
+		);
+		ctx.status(201);
+		ctx.json(Sputnik.user(user));
+	}
+	
+	// body {username, password} -> {session_id}, các request sau gửi "Authorization: Bearer <session_id>"
 	public void login(Context ctx) {
-		// TODO: Implement login
-		ctx.status(HttpStatus.NOT_IMPLEMENTED);
+		var body = Sputnik.body(ctx);
+		String sessionID = authService.login(Sputnik.require(body, "username"), Sputnik.require(body, "password"));
+		if (sessionID == null) {
+			throw new APIException(401, "Invalid username or password");
+		}
+		ctx.json(Sputnik.obj("session_id", sessionID));
 	}
-
+	
 	public void logout(Context ctx) {
-		// TODO: Implement logout
-		ctx.status(HttpStatus.NOT_IMPLEMENTED);
+		String token = Sputnik.token(ctx);
+		if (token == null) {
+			throw new APIException(401, "Authentication required");
+		}
+		authService.logout(token);
+		ctx.json(Sputnik.obj());
 	}
-
+	
 	public void getMe(Context ctx) {
-		// TODO: Implement getMe
-		ctx.status(HttpStatus.NOT_IMPLEMENTED);
+		ctx.json(Sputnik.user(userService.getPrivateUser(Sputnik.requireAuth(ctx, authService))));
 	}
 }

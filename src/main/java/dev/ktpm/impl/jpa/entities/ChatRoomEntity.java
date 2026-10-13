@@ -28,6 +28,10 @@ public class ChatRoomEntity {
 	
 	@Column(name = "is_public", nullable = false)
 	private boolean isPublic;
+	
+	// null = ko có invite code (chỉ dùng cho phòng private)
+	@Column(name = "invite_code")
+	private String inviteCode;
 
 	public static ChatRoomEntity fromModel(ChatRoom model) {
 		var entity = new ChatRoomEntity();
@@ -35,10 +39,11 @@ public class ChatRoomEntity {
 		entity.ownerUUID = model.owner();
 		entity.motd = model.motd();
 		entity.isPublic = model.isPublic();
+		entity.inviteCode = model.inviteCode();
 		return entity;
 	}
 
 	public ChatRoom toModel() {
-		return new ChatRoom(uuid, ownerUUID, motd, isPublic);
+		return new ChatRoom(uuid, ownerUUID, motd, isPublic, inviteCode);
 	}
 }

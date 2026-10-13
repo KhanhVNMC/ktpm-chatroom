@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>ktpm chatroom (test client)</title>
+<style>
+  body { font-family: monospace; margin: 8px; }
+  fieldset { margin-bottom: 8px; }
+  input[type=text], input[type=password] { width: 260px; }
+  #messages { border: 1px solid #000; height: 260px; overflow-y: scroll; padding: 4px; }
+  .msg { border-bottom: 1px dotted #999; padding: 2px 0; }
+  .meta { color: #666; }
+  #log { border: 1px solid #000; height: 160px; overflow-y: scroll; padding: 4px; white-space: pre-wrap; background: #eee; }
+</style>
+</head>
+<body>
+
+<h3>ktpm chatroom test client</h3>
+<div>status: <b id="whoami">not logged in</b></div>
+
+<fieldset>
+  <legend>auth</legend>
+  user <input type="text" id="username" style="width:120px">
+  pass <input type="password" id="password" style="width:120px">
+  display name <input type="text" id="displayName" style="width:120px">
+  <br>
+  <button onclick="register()">register</button>
+  <button onclick="login()">login</button>
+  <button onclick="me()">me</button>
+  <button onclick="logout()">logout</button>
+</fieldset>
+
+<fieldset>
+  <legend>rooms</legend>
+  new room: motd <input type="text" id="newMotd" style="width:160px">
+  <label><input type="checkbox" id="newPublic" checked> public</label>
+  invite code (private, blank = auto) <input type="text" id="newCode" style="width:100px">
+  <button onclick="createRoom()">create</button>
+  <br>
+  <button onclick="listRooms()">list public rooms</button>
+  limit <input type="text" id="roomLimit" value="50" style="width:40px">
+  <ul id="rooms"></ul>
+  room uuid <input type="text" id="roomId">
+  invite code <input type="text" id="inviteCode" style="width:120px">
+  <br>
+  <button onclick="joinRoom()">join</button>
+  <button onclick="leaveRoom()">leave</button>
+  <button onclick="overview()">overview</button>
+  <button onclick="loadHistory(true)">open (load history)</button>
+</fieldset>
+
+<fieldset>
+  <legend>chat</legend>
+  <div id="messages"></div>
+  <button onclick="loadHistory(false)">load older</button>
+  <button onclick="loadHistory(true)">refresh</button>
+  <label><input type="checkbox" id="autoRefresh" onchange="toggleAuto()"> auto refresh (3s)</label>
+  <br>
+  <input type="text" id="content" style="width:400px" onkeydown="if(event.key==='Enter')sendMessage()">
+  <input type="file" id="file" multiple>
+  <button onclick="sendMessage()">send</button>
+</fieldset>
+
+<fieldset>
+  <legend>raw log (last request / response)</legend>
+  <div id="log"></div>
+</fieldset>
+
+<script>
+var session = localStorage.getItem('session') || null;
+var oldest = null;      // uuid of oldest loaded message, for "load older"
+var autoTimer = null;
+
+function $(id) { return document.getElementById(id); }
+
+function log(s) {
+  var d = $('log');
+  d.textContent += s + '\n';
+  d.scrollTop = d.scrollHeight;
+}
+
+async function api(method, path, body) {
+  var headers = {};
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (session) headers['Authorization'] = 'Bearer ' + session;
+  log('> ' + method + ' ' + path + (body !== undefined ? ' ' + JSON.stringify(body).slice(0, 300) : ''));
+  var res, text;
+  try {
+    res = await fetch(path, { method: method, headers: headers, body: body !== undefined ? JSON.stringify(body) : undefined });
+    text = await res.text();
+  } catch (e) {
+    log('< NETWORK ERROR ' + e);
+    return { ok: false, status: 0, data: null };
+  }
+  var data = null;
+  try { data = text ? JSON.parse(text) : null; } catch (e) { data = text; }
+  log('< ' + res.status + ' ' + (typeof data === 'string' ? data : JSON.stringify(data)).slice(0, 600));
+  return { ok: res.ok, status: res.status, data: data };
+}
+
+function esc(s) {
+  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+}
+
+// ---- auth ----
+async function register() {
+  await api('POST', '/api/auth/register', {
+    username: $('username').value, password: $('password').value,
+    display_name: $('displayName').value || undefined
+  });
+}
+
+async function login() {
+  var r = await api('POST', '/api/auth/login', { username: $('username').value, password: $('password').value });
+  if (r.ok) {
+    session = r.data.session_id;
+    localStorage.setItem('session', session);
+    await me();
+  }
+}
+
+async function me() {
+  var r = await api('GET', '/api/auth/me');
+  if (r.ok) {
+    $('whoami').textContent = r.data.display_name + ' (' + r.data.username + ') ' + r.data.uuid;
+  } else {
+    $('whoami').textContent = 'not logged in';
+  }
+}
+
+async function logout() {
+  await api('POST', '/api/auth/logout');
+  session = null;
+  localStorage.removeItem('session');
+  $('whoami').textContent = 'not logged in';
+}
+
+// ---- rooms ----
+async function listRooms() {
+  var r = await api('GET', '/api/chatrooms/listing?limit=' + encodeURIComponent($('roomLimit').value || 0));
+  var ul = $('rooms');
+  ul.innerHTML = '';
+  if (!r.ok) return;
+  r.data.public_rooms.forEach(function (room) {
+    var li = document.createElement('li');
+    li.innerHTML = esc(room.roomUUID) + ' | ' + esc(room.motd) + ' | members: ' + room.members + ' ';
+    var b = document.createElement('button');
+    b.textContent = 'select';
+    b.onclick = function () { $('roomId').value = room.roomUUID; };
+    li.appendChild(b);
+    ul.appendChild(li);
+  });
+}
+
+function roomId() {
+  var id = $('roomId').value.trim();
+  if (!id) alert('enter a room uuid');
+  return id;
+}
+
+async function createRoom() {
+  var r = await api('POST', '/api/chatrooms', {
+    motd: $('newMotd').value, is_public: $('newPublic').checked,
+    invite_code: $('newCode').value || undefined
+  });
+  if (r.ok) {
+    $('roomId').value = r.data.room_uuid;
+    $('inviteCode').value = r.data.invite_code || '';
+    alert('created ' + r.data.room_uuid + (r.data.invite_code ? '\ninvite code: ' + r.data.invite_code : ''));
+  }
+}
+
+async function joinRoom() {
+  var id = roomId(); if (!id) return;
+  var code = $('inviteCode').value;
+  await api('POST', '/api/chatrooms/' + id + '/join', code ? { room_invite_code: code } : {});
+}
+
+async function leaveRoom() {
+  var id = roomId(); if (!id) return;
+  await api('POST', '/api/chatrooms/' + id + '/leave', { silent_leave: false });
+}
+
+async function overview() {
+  var id = roomId(); if (!id) return;
+  var r = await api('GET', '/api/chatrooms/' + id + '/overview');
+  if (r.ok) alert('motd: ' + r.data.motd + '\nowner: ' + r.data.owner + '\nmembers: ' + r.data.member_names.join(', '));
+}
+
+// ---- messages ----
+function renderMessage(m) {
+  var d = document.createElement('div');
+  d.className = 'msg';
+  d.dataset.uuid = m.chatMessageUUID;
+  var t = new Date(m.unixTimestamp).toLocaleString();
+  var html = '<span class="meta">[' + esc(t) + '] <b>' + esc(m.sender) + '</b>:</span> ' + esc(m.content);
+  if (m.attachments && m.attachments.length) html += ' <span class="meta">attachments: ' + esc(m.attachments.join(', ')) + '</span>';
+  html += ' <span class="meta">(' + esc(m.chatMessageUUID.slice(0, 8)) + ')</span> ';
+  d.innerHTML = html;
+  var e = document.createElement('button');
+  e.textContent = 'edit';
+  e.onclick = function () { editMessage(m); };
+  var x = document.createElement('button');
+  x.textContent = 'del';
+  x.onclick = function () { deleteMessage(m); };
+  d.appendChild(e);
+  d.appendChild(x);
+  return d;
+}
+
+// fresh=true: reload newest page. fresh=false: prepend the page before the oldest loaded message
+async function loadHistory(fresh) {
+  var id = roomId(); if (!id) return;
+  var box = $('messages');
+  var q = '?limit=50';
+  if (!fresh && oldest) q += '&before_message=' + oldest;
+  if (fresh) { box.innerHTML = ''; oldest = null; }
+  var r = await api('GET', '/api/chatrooms/' + id + '/history' + q);
+  if (!r.ok) return;
+  var msgs = r.data.messages; // old -> new
+  if (!msgs.length) return;
+  var prevHeight = box.scrollHeight;
+  var frag = document.createDocumentFragment();
+  msgs.forEach(function (m) { frag.appendChild(renderMessage(m)); });
+  box.insertBefore(frag, box.firstChild);
+  oldest = msgs[0].chatMessageUUID;
+  if (fresh) box.scrollTop = box.scrollHeight;
+  else box.scrollTop = box.scrollHeight - prevHeight;
+}
+
+function readFile(f) {
+  return new Promise(function (resolve, reject) {
+    var fr = new FileReader();
+    fr.onload = function () { resolve({ attachment: fr.result.split(',')[1], size: f.size }); };
+    fr.onerror = reject;
+    fr.readAsDataURL(f);
+  });
+}
+
+async function sendMessage() {
+  var id = roomId(); if (!id) return;
+  var body = { message_content: $('content').value };
+  var files = $('file').files;
+  if (files.length) body.uploaded_files = await Promise.all(Array.prototype.map.call(files, readFile));
+  var r = await api('POST', '/api/chatrooms/' + id + '/messages', body);
+  if (r.ok) {
+    $('content').value = '';
+    $('file').value = '';
+    loadHistory(true);
+  }
+}
+
+async function editMessage(m) {
+  var id = roomId(); if (!id) return;
+  var text = prompt('new content', m.content);
+  if (text === null) return;
+  var keep = confirm('keep attachments? (OK = yes, Cancel = no)');
+  var r = await api('PATCH', '/api/chatrooms/' + id + '/messages/' + m.chatMessageUUID, { new_content: text, keep_attachments: keep });
+  if (r.ok) loadHistory(true);
+}
+
+async function deleteMessage(m) {
+  var id = roomId(); if (!id) return;
+  if (!confirm('delete this message?')) return;
+  var r = await api('DELETE', '/api/chatrooms/' + id + '/messages/' + m.chatMessageUUID);
+  if (r.ok) loadHistory(true);
+}
+
+function toggleAuto() {
+  if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
+  if ($('autoRefresh').checked) autoTimer = setInterval(function () { if ($('roomId').value.trim()) loadHistory(true); }, 3000);
+}
+
+if (session) me();
+</script>
+</body>
+</html>

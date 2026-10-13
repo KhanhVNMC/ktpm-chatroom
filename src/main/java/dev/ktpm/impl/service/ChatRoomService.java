@@ -11,6 +11,7 @@ import dev.ktpm.repository.IChatRoomRepository;
 import dev.ktpm.repository.IRoomMembershipRepository;
 import dev.ktpm.repository.IUserRepository;
 import dev.ktpm.service.IChatRoomService;
+import dev.ktpm.consts.RoomMemberStatus;
 import dev.ktpm.consts.RoomPermissions;
 
 public class ChatRoomService implements IChatRoomService {
@@ -37,6 +38,26 @@ public class ChatRoomService implements IChatRoomService {
         int normalizedLimit = limit <= 0 ? 50 : Math.min(limit, 100);
         return chatRoomRepo.listPublicRooms(normalizedLimit);
     }
+
+	@Override
+	public int getMemberCount(UUID roomUUID) {
+		return roomMembershipRepo.countMembers(roomUUID);
+	}
+
+	@Override
+	public ChatRoom createRoom(UUID owner, String motd, boolean isPublic, Optional<String> inviteCode) {
+		if (owner == null || userRepo.get(owner).isEmpty()) {
+			throw new IllegalArgumentException("Owner not found");
+		}
+		String code = isPublic ? null : inviteCode.filter(c -> !c.isBlank()).orElseGet(() -> UUID.randomUUID().toString().substring(0, 8));
+		ChatRoom room = chatRoomRepo.create(new ChatRoom(UUID.randomUUID(), owner, motd, isPublic, code));
+		
+		// owner có full quyền
+		int allPermissions = RoomPermissions.SEND_MESSAGES | RoomPermissions.EDIT_MESSAGES | RoomPermissions.DELETE_MESSAGES
+			| RoomPermissions.KICK_MEMBERS | RoomPermissions.BAN_MEMBERS | RoomPermissions.MANAGE_ROOM;
+		roomMembershipRepo.create(new RoomMembership(room.uuid(), owner, System.currentTimeMillis(), allPermissions, 0));
+		return room;
+	}
 
     @Override
     public void joinRoom(
@@ -66,15 +87,10 @@ public class ChatRoomService implements IChatRoomService {
             );
         }
 
-        /*
-         * Chưa có trường invite code trong ChatRoom hoặc database,
-         * nên hiện tại chỉ cho phép tham gia phòng public.
-         */
-        if (!room.isPublic()) {
-            throw new IllegalStateException(
-                    "This is a private room, you have to be invited to join"
-            );
-        }
+		// phòng private: phải có invite code đúng
+		if (!room.isPublic() && (room.inviteCode() == null || !room.inviteCode().equals(inviteCode.orElse(null)))) {
+			throw new IllegalStateException("This is a private room, you need a valid invite code to join");
+		}
 
         RoomMembership membership = new RoomMembership(
                 roomUUID,
@@ -120,6 +136,11 @@ public class ChatRoomService implements IChatRoomService {
                     "Room owner cannot leave the room"
             );
         }
+
+		// ban thì ko cho leave, ko thì leave xong join lại là mất ban
+		if (roomMembershipRepo.get(roomUUID, userUUID).map(m -> (m.statusBits() & RoomMemberStatus.BANNED) != 0).orElse(false)) {
+			throw new IllegalStateException("You are banned from this room and cannot leave");
+		}
 
 
         roomMembershipRepo.delete(roomUUID, userUUID);

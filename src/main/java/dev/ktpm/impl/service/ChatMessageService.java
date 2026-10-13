@@ -9,6 +9,7 @@ import dev.ktpm.consts.RoomMemberStatus;
 import dev.ktpm.consts.RoomPermissions;
 import dev.ktpm.model.AttachmentAsset;
 import dev.ktpm.model.ChatMessage;
+import dev.ktpm.model.ChatRoom;
 import dev.ktpm.model.RoomMembership;
 import dev.ktpm.repository.IChatMessageRepository;
 import dev.ktpm.repository.IChatRoomRepository;
@@ -42,21 +43,15 @@ public class ChatMessageService implements IChatMessageService {
             return List.of();
         }
 
-        if (requester != null) {
-            Optional<RoomMembership> membershipOpt = roomMembershipRepo.get(roomUUID, requester);
-            if (membershipOpt.isPresent()) {
-                    RoomMembership membership = membershipOpt.get();
-                    if ((membership.statusBits() & RoomMemberStatus.BANNED) != 0) {
-                        throw new IllegalStateException("You are banned from this room");
-                    }
-            } else {
-                // Nếu không phải thành viên, cho phép xem nếu phòng public
-                var roomOpt = chatRoomRepo.get(roomUUID);
-                if (roomOpt.isEmpty() || !roomOpt.get().isPublic()) {
-                    throw new IllegalStateException("You are not a member of this room");
-                }
-            }
-        }
+		var membership = requester == null ? null : roomMembershipRepo.get(roomUUID, requester).orElse(null);
+		if (membership != null) {
+			if ((membership.statusBits() & RoomMemberStatus.BANNED) != 0) {
+				throw new IllegalStateException("You are banned from this room");
+			}
+		} else if (!chatRoomRepo.get(roomUUID).map(ChatRoom::isPublic).orElse(false)) {
+			// ko phải member (hoặc chưa đăng nhập) thì chỉ xem được phòng public
+			throw new IllegalStateException("You are not a member of this room");
+		}
 
         // Khống chế limit và beforeMessage tránh hết bộ nhớ 
         int maxLimit = (limit <= 0) ? 50 : Math.min(limit, 100);

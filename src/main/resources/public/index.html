@@ -2,76 +2,221 @@
 <html>
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>ktpm chatroom (test client)</title>
 <style>
-  body { font-family: monospace; margin: 8px; }
-  fieldset { margin-bottom: 8px; }
-  input[type=text], input[type=password] { width: 260px; }
-  #messages { border: 1px solid #000; height: 260px; overflow-y: scroll; padding: 4px; }
-  .msg { border-bottom: 1px dotted #999; padding: 2px 0; }
-  .meta { color: #666; }
-  #log { border: 1px solid #000; height: 160px; overflow-y: scroll; padding: 4px; white-space: pre-wrap; background: #eee; }
+  /* layout only: 3 columns like discord, left = account + rooms, middle = chat, right = room info + members */
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body { font-family: sans-serif; font-size: 13px; }
+  #app { display: grid; grid-template-columns: 250px 1fr 290px; height: 100vh; }
+  .col { overflow-y: auto; padding: 6px; border-right: 1px solid #888; }
+  .col:last-child { border-right: none; }
+  #center { display: flex; flex-direction: column; padding: 0; overflow: hidden; }
+  #header { padding: 6px; border-bottom: 1px solid #888; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  #header .grow { flex: 1; }
+  #banner { padding: 4px 6px; border-bottom: 1px solid #888; background: #eee; display: none; }
+  #messages { flex: 1; overflow-y: auto; padding: 6px; }
+  #composer { border-top: 1px solid #888; padding: 6px; display: flex; gap: 6px; align-items: center; flex-wrap: wrap; }
+  #composer #content { flex: 1; min-width: 160px; }
+  #joinbar { border-bottom: 1px solid #888; background: #eee; padding: 6px; }
+  .msg { padding: 3px 0; border-bottom: 1px dotted #aaa; }
+  .meta { color: #555; }
+  .content { white-space: pre-wrap; word-break: break-word; }
+  .att img, .att video { max-width: 280px; max-height: 200px; display: block; margin-top: 3px; }
+  .msg .acts { display: inline-block; margin-left: 6px; }
+  h4 { margin: 10px 0 4px 0; border-bottom: 1px solid #aaa; }
+  .row { display: flex; align-items: center; gap: 5px; padding: 2px 0; cursor: default; }
+  .row.click { cursor: pointer; }
+  .row.active { background: #ddd; }
+  .row .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .av { width: 24px; height: 24px; border: 1px solid #888; flex: none; display: inline-flex; align-items: center; justify-content: center; overflow: hidden; }
+  .av img { width: 100%; height: 100%; object-fit: cover; }
+  .big { width: 64px; height: 64px; }
+  .badge { border: 1px solid #888; padding: 0 3px; font-size: 11px; }
+  .member { padding: 3px 0; border-bottom: 1px dotted #aaa; }
+  .member .btns button { font-size: 11px; padding: 0 3px; }
+  input[type=text], input[type=password], select { width: 100%; margin: 1px 0; }
+  .inline input[type=text] { width: auto; }
+  .small { font-size: 11px; color: #555; }
+  .err { color: #a00; }
+  details { margin-top: 8px; }
+  #log, #events { height: 130px; overflow-y: scroll; white-space: pre-wrap; font-family: monospace; font-size: 11px; background: #eee; border: 1px solid #888; padding: 2px; }
+  .hidden { display: none !important; }
 </style>
 </head>
 <body>
+<div id="app">
 
-<h3>ktpm chatroom test client</h3>
-<div>status: <b id="whoami">not logged in</b></div>
+  <!-- left: account, rooms -->
+  <div class="col" id="left">
+    <div id="guest">
+      <h4>account</h4>
+      <input type="text" id="username" placeholder="username">
+      <input type="password" id="password" placeholder="password">
+      <input type="text" id="displayName" placeholder="display name (register only)">
+      <button onclick="register()">register</button>
+      <button onclick="login()">login</button>
+    </div>
 
-<fieldset>
-  <legend>auth</legend>
-  user <input type="text" id="username" style="width:120px">
-  pass <input type="password" id="password" style="width:120px">
-  display name <input type="text" id="displayName" style="width:120px">
-  <br>
-  <button onclick="register()">register</button>
-  <button onclick="login()">login</button>
-  <button onclick="me()">me</button>
-  <button onclick="logout()">logout</button>
-</fieldset>
+    <div id="user" class="hidden">
+      <h4>me</h4>
+      <div class="row"><span class="av big" id="meAvatar"></span><div><b id="meName"></b><br><span class="small" id="meSub"></span></div></div>
+      <button onclick="logout()">logout</button>
+      <details>
+        <summary>edit profile</summary>
+        <select id="mePresence">
+          <option>ONLINE</option><option>OFFLINE</option><option>AWAY</option><option>BUSY</option>
+        </select>
+        <input type="text" id="meDisplay" placeholder="display name">
+        <input type="text" id="meStatus" placeholder="status text">
+        <button onclick="saveProfile()">save profile</button><br>
+        avatar <input type="file" id="meFile" accept="image/*" style="width:120px">
+        <button onclick="uploadAvatar()">upload</button>
+        <button onclick="removeAvatar()">remove</button>
+      </details>
+    </div>
 
-<fieldset>
-  <legend>rooms</legend>
-  new room: motd <input type="text" id="newMotd" style="width:160px">
-  <label><input type="checkbox" id="newPublic" checked> public</label>
-  invite code (private, blank = auto) <input type="text" id="newCode" style="width:100px">
-  <button onclick="createRoom()">create</button>
-  <br>
-  <button onclick="listRooms()">list public rooms</button>
-  limit <input type="text" id="roomLimit" value="50" style="width:40px">
-  <ul id="rooms"></ul>
-  room uuid <input type="text" id="roomId">
-  invite code <input type="text" id="inviteCode" style="width:120px">
-  <br>
-  <button onclick="joinRoom()">join</button>
-  <button onclick="leaveRoom()">leave</button>
-  <button onclick="overview()">overview</button>
-  <button onclick="loadHistory(true)">open (load history)</button>
-</fieldset>
+    <div id="roomtools" class="hidden">
+      <h4>my rooms <button onclick="loadMine()" style="font-size:11px">refresh</button></h4>
+      <div id="mine"></div>
+    </div>
 
-<fieldset>
-  <legend>chat</legend>
-  <div id="messages"></div>
-  <button onclick="loadHistory(false)">load older</button>
-  <button onclick="loadHistory(true)">refresh</button>
-  <label><input type="checkbox" id="autoRefresh" onchange="toggleAuto()"> auto refresh (3s)</label>
-  <br>
-  <input type="text" id="content" style="width:400px" onkeydown="if(event.key==='Enter')sendMessage()">
-  <input type="file" id="file" multiple>
-  <button onclick="sendMessage()">send</button>
-</fieldset>
+    <h4>public rooms <button onclick="loadPublic()" style="font-size:11px">refresh</button></h4>
+    <div id="pub"></div>
 
-<fieldset>
-  <legend>raw log (last request / response)</legend>
-  <div id="log"></div>
-</fieldset>
+    <details id="moretools" class="hidden">
+      <summary>create room / join with code</summary>
+      <h4>create room</h4>
+      <input type="text" id="newName" placeholder="name">
+      <input type="text" id="newMotd" placeholder="motd">
+      <label><input type="checkbox" id="newPublic" checked> public</label>
+      <input type="text" id="newCode" placeholder="invite code (private, blank = auto)">
+      <button onclick="createRoom()">create</button>
+
+      <h4>join with invite code</h4>
+      <input type="text" id="joinCode" placeholder="invite code">
+      <button onclick="previewInvite()">preview</button>
+      <button onclick="joinInvite()">join</button>
+    </details>
+  </div>
+
+  <!-- middle: chat -->
+  <div class="col" id="center">
+    <div id="header">
+      <b id="roomTitle">no room selected</b>
+      <span class="small grow" id="roomMotd"></span>
+      <input type="text" id="searchQ" placeholder="search messages" style="width:150px" onkeydown="if(event.key==='Enter')search()">
+      <button onclick="search()">search</button>
+    </div>
+    <div id="joinbar" class="hidden">
+      <span id="joinMsg"></span>
+      <input type="text" id="roomCode" placeholder="invite code" style="width:160px">
+      <button id="joinBtn" onclick="joinCurrent()"><b>join room</b></button>
+    </div>
+    <div id="banner"></div>
+    <div id="messages"></div>
+    <div id="composer" class="hidden">
+      <input type="text" id="content" placeholder="message (emoji ok)" onkeydown="if(event.key==='Enter')sendMessage()">
+      <input type="file" id="files" multiple style="width:170px">
+      <button id="recBtn" onclick="toggleRecord()">rec voice</button>
+      <button onclick="sendMessage()">send</button>
+    </div>
+  </div>
+
+  <!-- right: room info, members -->
+  <div class="col" id="right">
+    <div id="roomInfo" class="small">open a room</div>
+
+    <div id="manage" class="hidden">
+      <details><summary><b>manage room</b></summary>
+      <input type="text" id="editName" placeholder="name">
+      <input type="text" id="editMotd" placeholder="motd">
+      <button onclick="saveRoom()">save</button><br>
+      avatar <input type="file" id="roomFile" accept="image/*" style="width:120px">
+      <button onclick="setRoomAvatar()">upload</button>
+      <button onclick="delRoomAvatar()">remove</button><br>
+      <span id="inviteBox">
+        <button onclick="resetCode()">new invite code</button>
+        <input type="text" id="customCode" placeholder="custom code (optional)" style="width:120px">
+      </span>
+      </details>
+    </div>
+
+    <div id="leaveBox" class="hidden">
+      <h4>leave / delete</h4>
+      <label><input type="checkbox" id="silent"> silent leave</label>
+      <input type="text" id="reason" placeholder="reason (optional)">
+      <button onclick="leaveRoom()" id="leaveBtn">leave</button>
+      <button onclick="deleteRoom()" id="delBtn" class="hidden">delete room</button>
+    </div>
+
+    <div id="permBox" class="hidden">
+      <h4>permissions: <span id="permWho"></span></h4>
+      <div id="permChecks"></div>
+      <button onclick="applyPerms()">apply</button>
+      <button onclick="closePerms()">cancel</button>
+    </div>
+
+    <h4>members</h4>
+    <div id="members" class="small">-</div>
+
+    <details>
+      <summary>realtime events (SSE)</summary>
+      <div id="events"></div>
+    </details>
+    <details>
+      <summary>raw log</summary>
+      <div id="log"></div>
+    </details>
+  </div>
+</div>
 
 <script>
-var session = localStorage.getItem('session') || null;
-var oldest = null;      // uuid of oldest loaded message, for "load older"
-var autoTimer = null;
+var PERMS = [
+  ['SEND_MESSAGES', 1], ['EDIT_MESSAGES', 2], ['DELETE_MESSAGES', 4], ['KICK_MEMBERS', 8],
+  ['BAN_MEMBERS', 16], ['MANAGE_ROOM', 32], ['MUTE_MEMBERS', 64], ['GRANT_PERMISSIONS', 128]
+];
+var P = { DELETE: 4, KICK: 8, BAN: 16, MANAGE: 32, MUTE: 64, GRANT: 128 };
+var MUTED = 1, BANNED = 2;
+
+var S = {
+  session: localStorage.getItem('session'),
+  me: null,
+  room: null,        // current room uuid
+  overview: null,
+  members: [],
+  myBits: 0,
+  inRoom: false,
+  oldest: null,      // uuid of the oldest loaded message, for "load older"
+  searchQ: null,
+  unread: {},
+  mineIds: {},
+  es: null,
+  permTarget: null,
+  recorder: null
+};
 
 function $(id) { return document.getElementById(id); }
+
+/** tiny element builder, text goes in as text nodes so nothing is ever parsed as html */
+function h(tag, attrs) {
+  var el = document.createElement(tag);
+  for (var k in (attrs || {})) {
+    if (k === 'onclick') el.onclick = attrs[k];
+    else if (k === 'class') el.className = attrs[k];
+    else el.setAttribute(k, attrs[k]);
+  }
+  for (var i = 2; i < arguments.length; i++) {
+    var c = arguments[i];
+    if (c === null || c === undefined || c === false) continue;
+    el.appendChild(typeof c === 'object' ? c : document.createTextNode(String(c)));
+  }
+  return el;
+}
+function btn(label, fn) { return h('button', { onclick: fn }, label); }
+function clear(el) { while (el.firstChild) el.removeChild(el.firstChild); }
+function show(id, on) { $(id).classList.toggle('hidden', !on); }
 
 function log(s) {
   var d = $('log');
@@ -79,14 +224,21 @@ function log(s) {
   d.scrollTop = d.scrollHeight;
 }
 
-async function api(method, path, body) {
+async function api(method, path, body, extra) {
   var headers = {};
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
-  if (session) headers['Authorization'] = 'Bearer ' + session;
-  log('> ' + method + ' ' + path + (body !== undefined ? ' ' + JSON.stringify(body).slice(0, 300) : ''));
+  var payload;
+  if (extra && extra.raw !== undefined) {
+    payload = extra.raw;
+    if (extra.name) headers['X-File-Name'] = extra.name;
+  } else if (body !== undefined) {
+    headers['Content-Type'] = 'application/json';
+    payload = JSON.stringify(body);
+  }
+  if (S.session) headers['Authorization'] = 'Bearer ' + S.session;
+  log('> ' + method + ' ' + path + (body !== undefined ? ' ' + JSON.stringify(body).slice(0, 200) : ''));
   var res, text;
   try {
-    res = await fetch(path, { method: method, headers: headers, body: body !== undefined ? JSON.stringify(body) : undefined });
+    res = await fetch(path, { method: method, headers: headers, body: payload });
     text = await res.text();
   } catch (e) {
     log('< NETWORK ERROR ' + e);
@@ -94,184 +246,606 @@ async function api(method, path, body) {
   }
   var data = null;
   try { data = text ? JSON.parse(text) : null; } catch (e) { data = text; }
-  log('< ' + res.status + ' ' + (typeof data === 'string' ? data : JSON.stringify(data)).slice(0, 600));
+  log('< ' + res.status + ' ' + (typeof data === 'string' ? data : JSON.stringify(data)).slice(0, 300));
+  if (!res.ok) alertErr(data, res.status);
   return { ok: res.ok, status: res.status, data: data };
 }
 
-function esc(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+function alertErr(data, status) {
+  var msg = data && data.error_message ? data.error_message : ('HTTP ' + status);
+  $('banner').style.display = 'block';
+  $('banner').className = 'err';
+  $('banner').textContent = msg;
+  clearTimeout(alertErr.t);
+  alertErr.t = setTimeout(function () { renderBanner(); }, 4000);
 }
 
-// ---- auth ----
+function renderBanner() {
+  var b = $('banner');
+  b.className = '';
+  clear(b);
+  if (S.searchQ) {
+    b.style.display = 'block';
+    b.appendChild(document.createTextNode('search results for "' + S.searchQ + '" '));
+    b.appendChild(btn('exit search', function () { S.searchQ = null; $('searchQ').value = ''; renderBanner(); loadPage(true); }));
+  } else {
+    b.style.display = 'none';
+  }
+}
+
+function avatarEl(url, name, cls) {
+  var d = h('span', { class: 'av ' + (cls || '') });
+  if (url) d.appendChild(h('img', { src: url + (url.indexOf('?') < 0 ? '?t=' + Date.now() : '') }));
+  else d.appendChild(document.createTextNode((name || '?').charAt(0).toUpperCase()));
+  return d;
+}
+
+function fileToB64(file) {
+  return new Promise(function (resolve, reject) {
+    var r = new FileReader();
+    r.onload = function () { resolve(String(r.result).split(',')[1] || ''); };
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+function fileBytes(file) { return file.arrayBuffer(); }
+
+/* ---------------- auth / profile ---------------- */
+
 async function register() {
-  await api('POST', '/api/auth/register', {
+  var r = await api('POST', '/api/auth/register', {
     username: $('username').value, password: $('password').value,
     display_name: $('displayName').value || undefined
   });
+  if (r.ok) login();
 }
 
 async function login() {
   var r = await api('POST', '/api/auth/login', { username: $('username').value, password: $('password').value });
-  if (r.ok) {
-    session = r.data.session_id;
-    localStorage.setItem('session', session);
-    await me();
-  }
-}
-
-async function me() {
-  var r = await api('GET', '/api/auth/me');
-  if (r.ok) {
-    $('whoami').textContent = r.data.display_name + ' (' + r.data.username + ') ' + r.data.uuid;
-  } else {
-    $('whoami').textContent = 'not logged in';
-  }
+  if (!r.ok) return;
+  S.session = r.data.session_id;
+  localStorage.setItem('session', S.session);
+  await boot();
 }
 
 async function logout() {
   await api('POST', '/api/auth/logout');
-  session = null;
+  dropSession();
+}
+
+function dropSession() {
+  S.session = null; S.me = null; S.room = null;
   localStorage.removeItem('session');
-  $('whoami').textContent = 'not logged in';
+  if (S.es) { S.es.close(); S.es = null; }
+  renderMe();
+  clear($('mine'));
+  S.mineIds = {};
+  closeRoom();
+  loadPublic();
 }
 
-// ---- rooms ----
-async function listRooms() {
-  var r = await api('GET', '/api/chatrooms/listing?limit=' + encodeURIComponent($('roomLimit').value || 0));
-  var ul = $('rooms');
-  ul.innerHTML = '';
-  if (!r.ok) return;
-  r.data.public_rooms.forEach(function (room) {
-    var li = document.createElement('li');
-    li.innerHTML = esc(room.roomUUID) + ' | ' + esc(room.motd) + ' | members: ' + room.members + ' ';
-    var b = document.createElement('button');
-    b.textContent = 'select';
-    b.onclick = function () { $('roomId').value = room.roomUUID; };
-    li.appendChild(b);
-    ul.appendChild(li);
+async function boot() {
+  if (!S.session) { renderMe(); loadPublic(); return; }
+  var r = await api('GET', '/api/auth/me');
+  if (!r.ok) { dropSession(); return; }
+  S.me = r.data;
+  renderMe();
+  connectSSE();
+  refreshLists();
+  if (S.room) openRoom(S.room);
+}
+
+function renderMe() {
+  show('guest', !S.me);
+  show('user', !!S.me);
+  show('roomtools', !!S.me);
+  show('moretools', !!S.me);
+  if (!S.me) return;
+  var a = $('meAvatar');
+  clear(a);
+  if (S.me.avatar) a.appendChild(h('img', { src: S.me.avatar + '?t=' + Date.now() }));
+  else a.appendChild(document.createTextNode(S.me.display_name.charAt(0).toUpperCase()));
+  $('meName').textContent = S.me.display_name;
+  $('meSub').textContent = '@' + S.me.username + ' - ' + S.me.presence + (S.me.status_text ? ' - ' + S.me.status_text : '');
+  $('mePresence').value = S.me.presence;
+  $('meDisplay').value = S.me.display_name;
+  $('meStatus').value = S.me.status_text || '';
+}
+
+async function saveProfile() {
+  var r = await api('PATCH', '/api/user/me', {
+    display_name: $('meDisplay').value, presence: $('mePresence').value, status_text: $('meStatus').value
   });
+  if (r.ok) { S.me = r.data; renderMe(); }
 }
 
-function roomId() {
-  var id = $('roomId').value.trim();
-  if (!id) alert('enter a room uuid');
-  return id;
+async function uploadAvatar() {
+  var f = $('meFile').files[0];
+  if (!f) return;
+  var up = await api('POST', '/api/assets', undefined, { raw: await fileBytes(f), name: f.name });
+  if (!up.ok) return;
+  var r = await api('PATCH', '/api/user/me', { avatar: up.data.asset_uuid });
+  if (r.ok) { S.me = r.data; renderMe(); }
+}
+
+async function removeAvatar() {
+  var r = await api('PATCH', '/api/user/me', { avatar: null });
+  if (r.ok) { S.me = r.data; renderMe(); }
+}
+
+/* ---------------- room lists ---------------- */
+
+function roomRow(room, withJoin) {
+  var id = room.roomUUID;
+  var joinable = withJoin && S.me && !S.mineIds[id];
+  var row = h('div', { class: 'row click' + (id === S.room ? ' active' : ''), onclick: function () { openRoom(id); } },
+    avatarEl(room.avatar, room.name),
+    h('span', { class: 'name' }, room.name || id),
+    S.unread[id] ? h('span', { class: 'badge' }, S.unread[id]) : null,
+    h('span', { class: 'small' }, room.members),
+    (joinable ? h('button', { onclick: function (e) { e.stopPropagation(); quickJoin(id); } }, 'join') : null));
+  row.title = (room.motd || '') + '\n' + id;
+  return row;
+}
+
+async function loadMine() {
+  if (!S.me) return;
+  var r = await api('GET', '/api/chatrooms/mine?limit=100');
+  if (!r.ok) return;
+  var box = $('mine');
+  clear(box);
+  S.mineIds = {};
+  r.data.rooms.forEach(function (room) { S.mineIds[room.roomUUID] = true; box.appendChild(roomRow(room)); });
+}
+
+async function loadPublic() {
+  var r = await api('GET', '/api/chatrooms/listing?limit=100');
+  if (!r.ok) return;
+  var box = $('pub');
+  clear(box);
+  r.data.public_rooms.forEach(function (room) { box.appendChild(roomRow(room, true)); });
+}
+
+async function refreshLists() {
+  await loadMine(); // public list needs to know which rooms are already mine
+  await loadPublic();
+}
+
+async function quickJoin(id) {
+  var r = await api('POST', '/api/chatrooms/' + id + '/join', {});
+  if (!r.ok) return;
+  await refreshLists();
+  openRoom(id);
 }
 
 async function createRoom() {
   var r = await api('POST', '/api/chatrooms', {
-    motd: $('newMotd').value, is_public: $('newPublic').checked,
-    invite_code: $('newCode').value || undefined
+    name: $('newName').value, motd: $('newMotd').value,
+    is_public: $('newPublic').checked, invite_code: $('newCode').value || undefined
   });
-  if (r.ok) {
-    $('roomId').value = r.data.room_uuid;
-    $('inviteCode').value = r.data.invite_code || '';
-    alert('created ' + r.data.room_uuid + (r.data.invite_code ? '\ninvite code: ' + r.data.invite_code : ''));
+  if (!r.ok) return;
+  refreshLists();
+  openRoom(r.data.room_uuid);
+}
+
+async function previewInvite() {
+  var code = $('joinCode').value.trim();
+  if (!code) return;
+  var r = await api('GET', '/api/chatrooms/invite/' + encodeURIComponent(code));
+  if (r.ok) alert(r.data.name + '\n' + r.data.motd + '\nmembers: ' + r.data.member_count + '\nowner: ' + r.data.owner);
+}
+
+async function joinInvite() {
+  var code = $('joinCode').value.trim();
+  if (!code) return;
+  var r = await api('POST', '/api/chatrooms/invite/' + encodeURIComponent(code) + '/join');
+  if (!r.ok) return;
+  $('joinCode').value = '';
+  refreshLists();
+  openRoom(r.data.room_uuid);
+}
+
+/* ---------------- current room ---------------- */
+
+function closeRoom() {
+  S.room = null; S.overview = null; S.members = []; S.myBits = 0; S.inRoom = false; S.searchQ = null;
+  $('roomTitle').textContent = 'no room selected';
+  $('roomMotd').textContent = '';
+  clear($('messages'));
+  clear($('members'));
+  $('roomInfo').textContent = 'open a room';
+  show('composer', false); show('joinbar', false); show('manage', false); show('leaveBox', false); show('permBox', false);
+  renderBanner();
+}
+
+async function openRoom(id) {
+  S.room = id; S.searchQ = null; S.oldest = null; S.permTarget = null;
+  delete S.unread[id];
+  clear($('messages'));
+  show('permBox', false);
+  renderBanner();
+  refreshLists();
+  await loadOverview();
+  if (S.room !== id) return;
+  if (!S.overview) { $('roomTitle').textContent = 'cannot open this room'; return; }
+  await loadMembers();
+  await loadPage(true);
+}
+
+async function loadOverview() {
+  var r = await api('GET', '/api/chatrooms/' + S.room + '/overview');
+  S.overview = r.ok ? r.data : null;
+  renderRoomInfo();
+}
+
+async function loadMembers() {
+  var m = null;
+  if (S.me) {
+    var r = await api('GET', '/api/chatrooms/' + S.room + '/members');
+    if (r.ok) m = r.data.members;
+  }
+  S.myBits = 0; S.inRoom = false;
+  if (m) {
+    S.members = m;
+    var mine = m.filter(function (x) { return S.me && x.uuid === S.me.uuid; })[0];
+    S.inRoom = !!mine && mine.is_in_room;
+    S.myBits = mine ? mine.permission_bits : 0;
+  } else {
+    S.members = S.overview ? S.overview.members : []; // not a member: only the public summary
+  }
+  renderMembers();
+  renderRoomInfo();
+}
+
+function isOwner() { return !!(S.me && S.overview && S.overview.owner_uuid === S.me.uuid); }
+function can(bit) { return isOwner() || (S.myBits & bit) !== 0; }
+
+function renderRoomInfo() {
+  var o = S.overview;
+  var box = $('roomInfo');
+  clear(box);
+  if (!o) { $('roomTitle').textContent = 'cannot open this room'; show('manage', false); show('leaveBox', false); return; }
+  $('roomTitle').textContent = o.name;
+  $('roomMotd').textContent = o.motd;
+  box.appendChild(h('div', { class: 'row' }, avatarEl(o.avatar, o.name, 'big'),
+    h('div', {}, h('b', {}, o.name), h('br'), o.is_public ? 'public' : 'private', ' - ', o.member_count, ' members', h('br'),
+      'owner: ', o.owner, h('br'), 'created: ', new Date(o.createdAt).toLocaleString())));
+  if (o.invite_code) {
+    box.appendChild(h('div', {}, 'invite code: ', h('b', {}, o.invite_code), h('br'),
+      'link: ', h('code', {}, location.origin + '/api/chatrooms/invite/' + o.invite_code)));
+  }
+  $('editName').value = o.name;
+  $('editMotd').value = o.motd;
+  show('manage', S.inRoom && can(P.MANAGE));
+  $('inviteBox').style.display = o.is_public ? 'none' : '';
+  show('leaveBox', S.inRoom);
+  show('delBtn', isOwner());
+  show('leaveBtn', !isOwner());
+  show('composer', S.inRoom);
+  show('joinbar', !S.inRoom);
+  $('joinMsg').textContent = !S.me ? 'log in to join this room.' : (o.is_public ? 'you are viewing this room, not a member yet.' : 'private room, enter the invite code to join.');
+  $('roomCode').style.display = (S.me && !o.is_public) ? '' : 'none';
+  $('joinBtn').style.display = S.me ? '' : 'none';
+}
+
+function renderMembers() {
+  var box = $('members');
+  clear(box);
+  var banned = [];
+  S.members.forEach(function (m) {
+    if (m.is_in_room === false) { banned.push(m); return; }
+    box.appendChild(memberRow(m));
+  });
+  if (banned.length) {
+    box.appendChild(h('h4', {}, 'banned'));
+    banned.forEach(function (m) { box.appendChild(memberRow(m)); });
   }
 }
 
-async function joinRoom() {
-  var id = roomId(); if (!id) return;
-  var code = $('inviteCode').value;
-  await api('POST', '/api/chatrooms/' + id + '/join', code ? { room_invite_code: code } : {});
+function memberRow(m) {
+  var ownerRow = S.overview && m.uuid === S.overview.owner_uuid;
+  var self = S.me && m.uuid === S.me.uuid;
+  var inRoom = m.is_in_room !== false;
+  var row = h('div', { class: 'member' },
+    h('div', { class: 'row' }, avatarEl(m.avatar, m.display_name),
+      h('span', { class: 'name' }, m.display_name),
+      ownerRow ? h('span', { class: 'badge' }, 'owner') : null,
+      (m.status_bits & MUTED) ? h('span', { class: 'badge' }, 'muted') : null,
+      !inRoom ? h('span', { class: 'badge' }, 'banned') : null,
+      inRoom ? h('span', { class: 'small' }, m.presence) : null),
+    m.status_text ? h('div', { class: 'small' }, m.status_text) : null);
+  // moderation buttons, the server enforces the real rules (cant touch owner/admins etc)
+  if (S.inRoom && m.permission_bits !== undefined && !ownerRow && !self) {
+    var b = h('div', { class: 'btns' });
+    var uid = m.uuid;
+    if (inRoom && can(P.KICK)) b.appendChild(btn('kick', function () { moderate(uid, 'kick'); }));
+    if (inRoom && can(P.BAN)) b.appendChild(btn('ban', function () { moderate(uid, 'ban'); }));
+    if (!inRoom && can(P.BAN)) b.appendChild(btn('unban', function () { moderate(uid, 'unban'); }));
+    if (inRoom && can(P.MUTE)) {
+      b.appendChild((m.status_bits & MUTED)
+        ? btn('unmute', function () { moderate(uid, 'unmute'); })
+        : btn('mute', function () { moderate(uid, 'mute'); }));
+    }
+    if (inRoom && can(P.GRANT)) b.appendChild(btn('perms', function () { openPerms(m); }));
+    if (inRoom && isOwner()) b.appendChild(btn('make owner', function () { transfer(uid, m.display_name); }));
+    row.appendChild(b);
+  }
+  return row;
+}
+
+async function moderate(uid, action) {
+  var reason = (action === 'kick' || action === 'ban') ? prompt('reason (optional)') : null;
+  var r = await api('POST', '/api/chatrooms/' + S.room + '/members/' + uid + '/' + action, reason ? { reason: reason } : {});
+  if (r.ok) { loadMembers(); loadOverview(); }
+}
+
+async function transfer(uid, name) {
+  if (!confirm('transfer ownership to ' + name + '?')) return;
+  var r = await api('POST', '/api/chatrooms/' + S.room + '/transfer-ownership', { new_owner: uid });
+  if (r.ok) { loadOverview().then(loadMembers); }
+}
+
+function openPerms(m) {
+  S.permTarget = m.uuid;
+  $('permWho').textContent = m.display_name;
+  var box = $('permChecks');
+  clear(box);
+  PERMS.forEach(function (p) {
+    var cb = h('input', { type: 'checkbox', 'data-bit': p[1] });
+    cb.checked = (m.permission_bits & p[1]) !== 0;
+    box.appendChild(h('div', {}, h('label', {}, cb, ' ' + p[0])));
+  });
+  show('permBox', true);
+}
+
+function closePerms() { S.permTarget = null; show('permBox', false); }
+
+async function applyPerms() {
+  var bits = 0;
+  Array.prototype.forEach.call($('permChecks').querySelectorAll('input'), function (cb) {
+    if (cb.checked) bits |= parseInt(cb.getAttribute('data-bit'), 10);
+  });
+  var r = await api('PUT', '/api/chatrooms/' + S.room + '/members/' + S.permTarget + '/permissions', { permission_bits: bits });
+  if (r.ok) { closePerms(); loadMembers(); }
+}
+
+async function joinCurrent() {
+  var code = $('roomCode').value.trim();
+  var r = await api('POST', '/api/chatrooms/' + S.room + '/join', code ? { room_invite_code: code } : {});
+  if (!r.ok) return;
+  $('roomCode').value = '';
+  refreshLists();
+  openRoom(S.room);
 }
 
 async function leaveRoom() {
-  var id = roomId(); if (!id) return;
-  await api('POST', '/api/chatrooms/' + id + '/leave', { silent_leave: false });
-}
-
-async function overview() {
-  var id = roomId(); if (!id) return;
-  var r = await api('GET', '/api/chatrooms/' + id + '/overview');
-  if (r.ok) alert('motd: ' + r.data.motd + '\nowner: ' + r.data.owner + '\nmembers: ' + r.data.member_names.join(', '));
-}
-
-// ---- messages ----
-function renderMessage(m) {
-  var d = document.createElement('div');
-  d.className = 'msg';
-  d.dataset.uuid = m.chatMessageUUID;
-  var t = new Date(m.unixTimestamp).toLocaleString();
-  var html = '<span class="meta">[' + esc(t) + '] <b>' + esc(m.sender) + '</b>:</span> ' + esc(m.content);
-  if (m.attachments && m.attachments.length) html += ' <span class="meta">attachments: ' + esc(m.attachments.join(', ')) + '</span>';
-  html += ' <span class="meta">(' + esc(m.chatMessageUUID.slice(0, 8)) + ')</span> ';
-  d.innerHTML = html;
-  var e = document.createElement('button');
-  e.textContent = 'edit';
-  e.onclick = function () { editMessage(m); };
-  var x = document.createElement('button');
-  x.textContent = 'del';
-  x.onclick = function () { deleteMessage(m); };
-  d.appendChild(e);
-  d.appendChild(x);
-  return d;
-}
-
-// fresh=true: reload newest page. fresh=false: prepend the page before the oldest loaded message
-async function loadHistory(fresh) {
-  var id = roomId(); if (!id) return;
-  var box = $('messages');
-  var q = '?limit=50';
-  if (!fresh && oldest) q += '&before_message=' + oldest;
-  if (fresh) { box.innerHTML = ''; oldest = null; }
-  var r = await api('GET', '/api/chatrooms/' + id + '/history' + q);
-  if (!r.ok) return;
-  var msgs = r.data.messages; // old -> new
-  if (!msgs.length) return;
-  var prevHeight = box.scrollHeight;
-  var frag = document.createDocumentFragment();
-  msgs.forEach(function (m) { frag.appendChild(renderMessage(m)); });
-  box.insertBefore(frag, box.firstChild);
-  oldest = msgs[0].chatMessageUUID;
-  if (fresh) box.scrollTop = box.scrollHeight;
-  else box.scrollTop = box.scrollHeight - prevHeight;
-}
-
-function readFile(f) {
-  return new Promise(function (resolve, reject) {
-    var fr = new FileReader();
-    fr.onload = function () { resolve({ attachment: fr.result.split(',')[1], size: f.size }); };
-    fr.onerror = reject;
-    fr.readAsDataURL(f);
+  var r = await api('POST', '/api/chatrooms/' + S.room + '/leave', {
+    silent_leave: $('silent').checked, reason: $('reason').value || undefined
   });
+  if (!r.ok) return;
+  refreshLists();
+  openRoom(S.room); // public rooms stay viewable, private ones show "cannot open"
 }
 
-async function sendMessage() {
-  var id = roomId(); if (!id) return;
-  var body = { message_content: $('content').value };
-  var files = $('file').files;
-  if (files.length) body.uploaded_files = await Promise.all(Array.prototype.map.call(files, readFile));
-  var r = await api('POST', '/api/chatrooms/' + id + '/messages', body);
-  if (r.ok) {
-    $('content').value = '';
-    $('file').value = '';
-    loadHistory(true);
+async function deleteRoom() {
+  if (!confirm('delete this room for everyone?')) return;
+  var r = await api('DELETE', '/api/chatrooms/' + S.room);
+  if (r.ok) { closeRoom(); refreshLists(); }
+}
+
+async function saveRoom() {
+  var r = await api('PATCH', '/api/chatrooms/' + S.room, { name: $('editName').value, motd: $('editMotd').value });
+  if (r.ok) { loadOverview(); refreshLists(); }
+}
+
+async function setRoomAvatar() {
+  var f = $('roomFile').files[0];
+  if (!f) return;
+  var r = await api('PUT', '/api/chatrooms/' + S.room + '/avatar', undefined, { raw: await fileBytes(f), name: f.name });
+  if (r.ok) { loadOverview(); refreshLists(); }
+}
+
+async function delRoomAvatar() {
+  var r = await api('DELETE', '/api/chatrooms/' + S.room + '/avatar');
+  if (r.ok) { loadOverview(); refreshLists(); }
+}
+
+async function resetCode() {
+  var code = $('customCode').value.trim();
+  var r = await api('POST', '/api/chatrooms/' + S.room + '/invite-code', code ? { invite_code: code } : {});
+  if (r.ok) { $('customCode').value = ''; loadOverview(); }
+}
+
+/* ---------------- messages ---------------- */
+
+function attachmentEl(url) {
+  // the url has no extension so just try img -> video (also plays audio) -> plain link
+  var box = h('div', { class: 'att' });
+  var img = h('img', { src: url });
+  img.onerror = function () {
+    var vid = h('video', { src: url, controls: 'controls' });
+    vid.onerror = function () { box.replaceChild(h('a', { href: url, target: '_blank' }, 'attachment ' + url.split('/').pop().slice(0, 8)), vid); };
+    box.replaceChild(vid, img);
+  };
+  box.appendChild(img);
+  return box;
+}
+
+function msgEl(m) {
+  var mine = S.me && m.senderUUID === S.me.uuid;
+  var acts = h('span', { class: 'acts' });
+  if (mine) acts.appendChild(btn('edit', function () { editMessage(m); }));
+  if (mine || can(P.DELETE)) acts.appendChild(btn('delete', function () { deleteMessage(m); }));
+  var el = h('div', { class: 'msg', 'data-id': m.chatMessageUUID },
+    h('div', { class: 'meta' }, h('b', {}, m.sender), ' ', new Date(m.unixTimestamp).toLocaleString(), S.me ? acts : null),
+    h('div', { class: 'content' }, m.content));
+  (m.attachments || []).forEach(function (u) { el.appendChild(attachmentEl(u)); });
+  return el;
+}
+
+function findMsg(id) { return $('messages').querySelector('[data-id="' + id + '"]'); }
+
+function addMessage(m) {
+  if (findMsg(m.chatMessageUUID)) return;
+  var box = $('messages');
+  var atBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+  box.appendChild(msgEl(m));
+  if (atBottom) box.scrollTop = box.scrollHeight;
+}
+
+function updateMessage(m) {
+  var old = findMsg(m.chatMessageUUID);
+  if (old) old.parentNode.replaceChild(msgEl(m), old);
+}
+
+function removeMessage(id) {
+  var old = findMsg(id);
+  if (old) old.parentNode.removeChild(old);
+}
+
+// reset = (re)load newest page, otherwise prepend the page before S.oldest
+async function loadPage(reset) {
+  if (!S.room) return;
+  var box = $('messages');
+  var q = S.searchQ ? 'search?q=' + encodeURIComponent(S.searchQ) + '&' : 'history?';
+  var path = '/api/chatrooms/' + S.room + '/' + q + 'limit=30';
+  if (!reset && S.oldest) path += '&before_message=' + S.oldest;
+  var r = await api('GET', path);
+  if (!r.ok) return;
+  var list = r.data.messages; // old -> new
+  if (reset) { clear(box); S.oldest = null; }
+  if (list.length) S.oldest = list[0].chatMessageUUID;
+  if (reset) {
+    list.forEach(function (m) { box.appendChild(msgEl(m)); });
+    box.insertBefore(olderBtn(), box.firstChild);
+    box.scrollTop = box.scrollHeight;
+  } else {
+    var anchor = box.querySelector('.msg');
+    var before = box.scrollHeight;
+    list.forEach(function (m) { box.insertBefore(msgEl(m), anchor); });
+    box.scrollTop = box.scrollHeight - before;
+    if (!list.length) log('no older messages');
   }
 }
 
+function olderBtn() {
+  var b = h('div', { class: 'small', id: 'olderRow' }, btn('load older', function () { loadPage(false); }));
+  return b;
+}
+
+function search() {
+  var q = $('searchQ').value.trim();
+  if (!q || !S.room) return;
+  S.searchQ = q;
+  renderBanner();
+  loadPage(true);
+}
+
+async function sendMessage() {
+  var input = $('content');
+  var files = $('files').files;
+  var uploaded = [];
+  for (var i = 0; i < files.length; i++) {
+    uploaded.push({ attachment: await fileToB64(files[i]), file_name: files[i].name });
+  }
+  if (!input.value && !uploaded.length) return;
+  var r = await api('POST', '/api/chatrooms/' + S.room + '/messages', {
+    message_content: input.value || undefined, uploaded_files: uploaded.length ? uploaded : undefined
+  });
+  if (!r.ok) return;
+  input.value = '';
+  $('files').value = '';
+  if (!S.searchQ) addMessage(r.data);
+}
+
 async function editMessage(m) {
-  var id = roomId(); if (!id) return;
   var text = prompt('new content', m.content);
   if (text === null) return;
-  var keep = confirm('keep attachments? (OK = yes, Cancel = no)');
-  var r = await api('PATCH', '/api/chatrooms/' + id + '/messages/' + m.chatMessageUUID, { new_content: text, keep_attachments: keep });
-  if (r.ok) loadHistory(true);
+  var keep = (m.attachments || []).length ? confirm('keep the attachments? (cancel = drop them)') : false;
+  var r = await api('PATCH', '/api/chatrooms/' + S.room + '/messages/' + m.chatMessageUUID, { new_content: text, keep_attachments: keep });
+  if (r.ok) updateMessage(r.data);
 }
 
 async function deleteMessage(m) {
-  var id = roomId(); if (!id) return;
-  if (!confirm('delete this message?')) return;
-  var r = await api('DELETE', '/api/chatrooms/' + id + '/messages/' + m.chatMessageUUID);
-  if (r.ok) loadHistory(true);
+  var r = await api('DELETE', '/api/chatrooms/' + S.room + '/messages/' + m.chatMessageUUID);
+  if (r.ok) removeMessage(m.chatMessageUUID);
 }
 
-function toggleAuto() {
-  if (autoTimer) { clearInterval(autoTimer); autoTimer = null; }
-  if ($('autoRefresh').checked) autoTimer = setInterval(function () { if ($('roomId').value.trim()) loadHistory(true); }, 3000);
+/* voice message: record with the mic and attach it as a file */
+async function toggleRecord() {
+  if (S.recorder) { S.recorder.stop(); return; }
+  var stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch (e) { alert('no mic: ' + e); return; }
+  var chunks = [];
+  S.recorder = new MediaRecorder(stream);
+  S.recorder.ondataavailable = function (e) { chunks.push(e.data); };
+  S.recorder.onstop = function () {
+    stream.getTracks().forEach(function (t) { t.stop(); });
+    var file = new File(chunks, 'voice.webm', { type: 'audio/webm' });
+    var dt = new DataTransfer();
+    dt.items.add(file);
+    $('files').files = dt.files;
+    S.recorder = null;
+    $('recBtn').textContent = 'rec voice';
+  };
+  S.recorder.start();
+  $('recBtn').textContent = 'stop rec';
 }
 
-if (session) me();
+/* ---------------- realtime (SSE) ---------------- */
+
+function connectSSE() {
+  if (S.es) S.es.close();
+  // EventSource cant set headers, hence ?session_id=
+  S.es = new EventSource('/api/events?session_id=' + encodeURIComponent(S.session));
+  S.es.onmessage = function (e) {
+    var ev = JSON.parse(e.data);
+    var payload = JSON.parse(ev.payload); // payload is a json string inside the json
+    var d = $('events');
+    d.textContent += ev.type + ' ' + ev.payload.slice(0, 160) + '\n';
+    d.scrollTop = d.scrollHeight;
+    onEvent(ev.type, payload);
+  };
+  S.es.onerror = function () { log('SSE error / reconnecting'); };
+}
+
+function onEvent(type, p) {
+  switch (type) {
+    case 'CONNECTED': return;
+    case 'MESSAGE_CREATED':
+      if (p.roomUUID === S.room) { if (!S.searchQ) addMessage(p); }
+      else { S.unread[p.roomUUID] = (S.unread[p.roomUUID] || 0) + 1; loadMine(); }
+      return;
+    case 'MESSAGE_EDITED': if (p.roomUUID === S.room) updateMessage(p); return;
+    case 'MESSAGE_DELETED': if (p.room_uuid === S.room) removeMessage(p.message_uuid); return;
+    case 'USER_UPDATED':
+      if (S.me && p.uuid === S.me.uuid) { S.me = p; renderMe(); }
+      if (S.room) loadMembers();
+      return;
+    case 'ROOM_DELETED':
+      refreshLists();
+      if (p.room_uuid === S.room) { closeRoom(); alert('this room was deleted'); }
+      return;
+    case 'ROOM_UPDATED':
+      refreshLists();
+      if (p.roomUUID === S.room) loadOverview();
+      return;
+  }
+  // MEMBER_* and OWNER_TRANSFERRED, all carry room_uuid
+  var self = S.me && (p.user_uuid === S.me.uuid || (p.user && p.user.uuid === S.me.uuid));
+  if (p.room_uuid !== S.room) { if (self) refreshLists(); return; }
+  if (self && (type === 'MEMBER_KICKED' || type === 'MEMBER_BANNED')) {
+    alert(type === 'MEMBER_BANNED' ? 'you got banned from this room' : 'you got kicked from this room');
+    refreshLists();
+    openRoom(S.room);
+    return;
+  }
+  loadOverview().then(loadMembers);
+  loadMine();
+}
+
+boot();
 </script>
 </body>
 </html>

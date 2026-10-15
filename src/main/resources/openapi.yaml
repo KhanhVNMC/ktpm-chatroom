@@ -1,0 +1,630 @@
+openapi: 3.0.3
+info:
+  title: KTPM Chat Room API
+  version: 1.0.0
+  description: |
+    HTTP API for user authentication, chat rooms, and messages.
+    Authenticated endpoints use the session ID returned by login as a Bearer token.
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+
+tags:
+  - name: Health
+  - name: Authentication
+  - name: Users
+  - name: Chat rooms
+  - name: Messages
+
+paths:
+  /api/health:
+    get:
+      tags: [Health]
+      summary: Check that the service is running
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            text/plain:
+              schema:
+                type: string
+                example: OK
+
+  /api/auth/register:
+    post:
+      tags: [Authentication]
+      summary: Register a user account
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+            example:
+              username: abcd
+              password: 1234
+              display_name: Alice
+      responses:
+        "201":
+          description: Account created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+
+  /api/auth/login:
+    post:
+      tags: [Authentication]
+      summary: Log in and create a session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+            example:
+              username: abcd
+              password: 1234
+      responses:
+        "200":
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/auth/logout:
+    post:
+      tags: [Authentication]
+      summary: End the current session
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          $ref: "#/components/responses/EmptyObject"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/auth/me:
+    get:
+      tags: [Authentication]
+      summary: Get the authenticated user's private profile
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Current user
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/user/{id}:
+    get:
+      tags: [Users]
+      summary: Get a user's public profile
+      description: Authentication is optional. If supplied, an invalid or expired session is rejected.
+      security:
+        - BearerAuth: []
+        - {}
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: Public user profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/chatrooms:
+    post:
+      tags: [Chat rooms]
+      summary: Create a chat room
+      description: The room is public by default. A private room's invite code is generated if omitted.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateRoomRequest"
+            example:
+              motd: Welcome to the room
+              is_public: true
+      responses:
+        "201":
+          description: Room created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateRoomResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/chatrooms/listing:
+    get:
+      tags: [Chat rooms]
+      summary: List public chat rooms
+      description: Authentication is optional. If supplied, an invalid or expired session is rejected.
+      security:
+        - BearerAuth: []
+        - {}
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          description: Optional service-level result limit.
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Public rooms
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PublicRoomListing"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/chatrooms/{id}/overview:
+    get:
+      tags: [Chat rooms]
+      summary: Get a chat room overview
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RoomId"
+      responses:
+        "200":
+          description: Room overview
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoomOverview"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/chatrooms/{id}/join:
+    post:
+      tags: [Chat rooms]
+      summary: Join a chat room
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RoomId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/JoinRoomRequest"
+            example:
+              room_invite_code: invite-code
+      responses:
+        "200":
+          $ref: "#/components/responses/EmptyObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/chatrooms/{id}/leave:
+    post:
+      tags: [Chat rooms]
+      summary: Leave a chat room
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RoomId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LeaveRoomRequest"
+            example:
+              silent_leave: false
+              reason: Taking a break
+      responses:
+        "200":
+          $ref: "#/components/responses/EmptyObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/chatrooms/{id}/history:
+    get:
+      tags: [Messages]
+      summary: Get chat history
+      description: |
+        Authentication is optional. If supplied, an invalid or expired session is rejected.
+        Results are returned from oldest to newest. Attachments are currently not persisted by the application.
+      security:
+        - BearerAuth: []
+        - {}
+      parameters:
+        - $ref: "#/components/parameters/RoomId"
+        - name: limit
+          in: query
+          required: false
+          description: Optional service-level result limit.
+          schema:
+            type: integer
+        - name: before_message
+          in: query
+          required: false
+          description: Message UUID used as the pagination cursor.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Chat messages, ordered oldest to newest
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageHistory"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/chatrooms/{id}/messages:
+    post:
+      tags: [Messages]
+      summary: Send a message to a chat room
+      description: Uploaded file contents are accepted as Base64 but are not persisted yet.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RoomId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendMessageRequest"
+            example:
+              message_content: Hello, everyone!
+      responses:
+        "200":
+          $ref: "#/components/responses/EmptyObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/chatrooms/{id}/messages/{messageId}:
+    patch:
+      tags: [Messages]
+      summary: Edit a message
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RoomId"
+        - $ref: "#/components/parameters/MessageId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EditMessageRequest"
+            example:
+              new_content: Updated message
+              keep_attachments: false
+      responses:
+        "200":
+          $ref: "#/components/responses/EmptyObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Messages]
+      summary: Delete a message
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RoomId"
+        - $ref: "#/components/parameters/MessageId"
+      responses:
+        "200":
+          $ref: "#/components/responses/EmptyObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: session ID
+      description: Use the session_id returned by POST /api/auth/login.
+
+  parameters:
+    UserId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    RoomId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    MessageId:
+      name: messageId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        error_message:
+          type: string
+      required: [error_message]
+    User:
+      type: object
+      properties:
+        uuid:
+          type: string
+          format: uuid
+        username:
+          type: string
+        display_name:
+          type: string
+          nullable: true
+      required: [uuid, username, display_name]
+    RegisterRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+        display_name:
+          type: string
+          description: Defaults to username when omitted.
+      required: [username, password]
+    LoginRequest:
+      type: object
+      properties:
+        username:
+          type: string
+        password:
+          type: string
+          format: password
+      required: [username, password]
+    LoginResponse:
+      type: object
+      properties:
+        session_id:
+          type: string
+      required: [session_id]
+    CreateRoomRequest:
+      type: object
+      properties:
+        motd:
+          type: string
+          nullable: true
+        is_public:
+          type: boolean
+          default: true
+        invite_code:
+          type: string
+          description: Optional invite code. Private rooms generate one when omitted.
+    CreateRoomResponse:
+      type: object
+      properties:
+        room_uuid:
+          type: string
+          format: uuid
+        invite_code:
+          type: string
+          nullable: true
+      required: [room_uuid, invite_code]
+    RoomListing:
+      type: object
+      properties:
+        roomUUID:
+          type: string
+          format: uuid
+        motd:
+          type: string
+          nullable: true
+        members:
+          type: integer
+      required: [roomUUID, motd, members]
+    PublicRoomListing:
+      type: object
+      properties:
+        public_rooms:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoomListing"
+      required: [public_rooms]
+    RoomOverview:
+      type: object
+      properties:
+        motd:
+          type: string
+          nullable: true
+        owner:
+          type: string
+        member_names:
+          type: array
+          items:
+            type: string
+      required: [motd, owner, member_names]
+    JoinRoomRequest:
+      type: object
+      properties:
+        room_invite_code:
+          type: string
+    LeaveRoomRequest:
+      type: object
+      properties:
+        silent_leave:
+          type: boolean
+          default: false
+        reason:
+          type: string
+    UploadedFile:
+      type: object
+      description: Base64 file data. Files are not persisted by the current implementation.
+      properties:
+        attachment:
+          type: string
+          format: byte
+        size:
+          type: integer
+          format: int64
+          description: File size in bytes; defaults to the decoded byte length.
+      required: [attachment]
+    SendMessageRequest:
+      type: object
+      properties:
+        message_content:
+          type: string
+          nullable: true
+        uploaded_files:
+          type: array
+          items:
+            $ref: "#/components/schemas/UploadedFile"
+    EditMessageRequest:
+      type: object
+      properties:
+        new_content:
+          type: string
+          nullable: true
+        keep_attachments:
+          type: boolean
+          default: false
+    ChatMessage:
+      type: object
+      properties:
+        chatMessageUUID:
+          type: string
+          format: uuid
+        sender:
+          type: string
+          description: Sender's display name or username.
+        content:
+          type: string
+          nullable: true
+        attachments:
+          type: array
+          items:
+            type: string
+            format: uri
+        unixTimestamp:
+          type: integer
+          format: int64
+          description: Unix timestamp in milliseconds.
+      required: [chatMessageUUID, sender, content, attachments, unixTimestamp]
+    MessageHistory:
+      type: object
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/ChatMessage"
+      required: [messages]
+
+  responses:
+    EmptyObject:
+      description: Operation completed
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: false
+          example: {}
+    BadRequest:
+      description: Invalid request, parameter, or JSON body
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Unauthorized:
+      description: Authentication is required or the session is invalid or expired
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    Forbidden:
+      description: The operation is not allowed
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Requested user, room, or message was not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"

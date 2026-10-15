@@ -1,10 +1,11 @@
 openapi: 3.0.3
 info:
   title: KTPM Chat Room API
-  version: 1.0.0
+  version: 1.1.0
   description: |
-    HTTP API for user authentication, chat rooms, and messages.
+    HTTP API for user authentication, chat rooms, room members and messages.
     Authenticated endpoints use the session ID returned by login as a Bearer token.
+    Real-time events are delivered over Server-Sent Events (GET /api/events).
 servers:
   - url: http://localhost:8080
     description: Local development server
@@ -13,8 +14,11 @@ tags:
   - name: Health
   - name: Authentication
   - name: Users
+  - name: Assets
   - name: Chat rooms
+  - name: Room members
   - name: Messages
+  - name: Real-time events
 
 paths:
   /api/health:
@@ -34,6 +38,7 @@ paths:
     post:
       tags: [Authentication]
       summary: Register a user account
+      description: The username is stored in lowercase.
       requestBody:
         required: true
         content:
@@ -42,7 +47,7 @@ paths:
               $ref: "#/components/schemas/RegisterRequest"
             example:
               username: abcd
-              password: 1234
+              password: "123456"
               display_name: Alice
       responses:
         "201":
@@ -58,6 +63,7 @@ paths:
     post:
       tags: [Authentication]
       summary: Log in and create a session
+      description: Logging in sets the user's presence to `ONLINE` and notifies everyone sharing a room with them.
       requestBody:
         required: true
         content:
@@ -66,7 +72,7 @@ paths:
               $ref: "#/components/schemas/LoginRequest"
             example:
               username: abcd
-              password: 1234
+              password: "123456"
       responses:
         "200":
           description: Login successful
@@ -83,6 +89,7 @@ paths:
     post:
       tags: [Authentication]
       summary: End the current session
+      description: Sets the user's presence to `OFFLINE` and closes the SSE streams opened with this session.
       security:
         - BearerAuth: []
       responses:
@@ -104,6 +111,37 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/user/me:
+    patch:
+      tags: [Users]
+      summary: Update the authenticated user's profile
+      description: Fields that are not sent are left unchanged. Send a null avatar to remove it.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateProfileRequest"
+            example:
+              display_name: Alice
+              presence: BUSY
+              status_text: In a meeting
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
         "404":
@@ -133,6 +171,112 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/assets:
+    post:
+      tags: [Assets]
+      summary: Upload a file
+      description: Send the raw body with the X-File-Name header, or a multipart form with a file field.
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: X-File-Name
+          in: header
+          required: false
+          description: Original file name, the extension decides the content type. Ignored for multipart uploads.
+          schema:
+            type: string
+          example: avatar.png
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required: [file]
+      responses:
+        "201":
+          description: File stored
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UploadedAsset"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/assets/{id}:
+    get:
+      tags: [Assets]
+      summary: Download a file
+      description: Authentication is not required.
+      parameters:
+        - $ref: "#/components/parameters/AssetId"
+      responses:
+        "200":
+          description: The file
+          content:
+            "*/*":
+              schema:
+                type: string
+                format: binary
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/events:
+    get:
+      tags: [Real-time events]
+      summary: Subscribe to real-time events (Server-Sent Events)
+      description: |
+        Opens a Server-Sent Events stream for every room the user is in. The request must send `Accept: text/event-stream`.
+        The session can also be passed as the `session_id` query parameter.
+        Each data segment is `{"type": <event type>, "payload": "<JSON string>"}`. The payload is a string and has to be parsed again.
+        Events missed during a disconnect are not replayed.
+
+        | type | payload |
+        | :--- | :--- |
+        | `CONNECTED` | `ConnectedPayload` |
+        | `MESSAGE_CREATED`, `MESSAGE_EDITED` | `ChatMessage` |
+        | `MESSAGE_DELETED` | `MessageDeletedPayload` |
+        | `MEMBER_JOINED` | `MemberJoinedPayload` |
+        | `MEMBER_LEFT` | `MemberLeftPayload` |
+        | `MEMBER_KICKED`, `MEMBER_BANNED`, `MEMBER_UNBANNED`, `MEMBER_MUTED`, `MEMBER_UNMUTED` | `MemberModeratedPayload` |
+        | `MEMBER_PERMISSIONS_CHANGED` | `PermissionsChangedPayload` |
+        | `OWNER_TRANSFERRED` | `OwnerTransferredPayload` |
+        | `ROOM_UPDATED` | `RoomSummary` |
+        | `ROOM_DELETED` | `RoomDeletedPayload` |
+        | `USER_UPDATED` | `User` |
+      security:
+        - BearerAuth: []
+        - SessionQuery: []
+      responses:
+        "200":
+          description: Event stream
+          content:
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/RealtimeEvent"
+              example: |
+                data: {"type":"CONNECTED","payload":"{\"user_uuid\":\"0b6b7d2e-3b4f-4e0e-8c2a-6a7d1b9a1c11\"}"}
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "406":
+          description: The request does not accept `text/event-stream`
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /api/chatrooms:
     post:
       tags: [Chat rooms]
@@ -147,6 +291,7 @@ paths:
             schema:
               $ref: "#/components/schemas/CreateRoomRequest"
             example:
+              name: General
               motd: Welcome to the room
               is_public: true
       responses:
@@ -165,17 +310,12 @@ paths:
     get:
       tags: [Chat rooms]
       summary: List public chat rooms
-      description: Authentication is optional. If supplied, an invalid or expired session is rejected.
+      description: Authentication is optional. If supplied, an invalid or expired session is rejected. Newest rooms come first.
       security:
         - BearerAuth: []
         - {}
       parameters:
-        - name: limit
-          in: query
-          required: false
-          description: Optional service-level result limit.
-          schema:
-            type: integer
+        - $ref: "#/components/parameters/Limit"
       responses:
         "200":
           description: Public rooms
@@ -188,12 +328,129 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /api/chatrooms/mine:
+    get:
+      tags: [Chat rooms]
+      summary: List the rooms the authenticated user is in
+      description: Includes private rooms. Rooms the user was banned from are not listed.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+      responses:
+        "200":
+          description: Joined rooms
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JoinedRoomListing"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/chatrooms/invite/{code}:
+    get:
+      tags: [Chat rooms]
+      summary: Preview a room from an invite code or link
+      description: Authentication is not required. The member list and invite code are not included.
+      parameters:
+        - $ref: "#/components/parameters/InviteCode"
+      responses:
+        "200":
+          description: Room overview without members
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoomOverview"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/chatrooms/invite/{code}/join:
+    post:
+      tags: [Chat rooms]
+      summary: Join a room with an invite code or link
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/InviteCode"
+      responses:
+        "200":
+          description: Joined the room
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JoinedRoom"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/chatrooms/{id}:
+    patch:
+      tags: [Chat rooms]
+      summary: Change the name or MOTD of a room
+      description: Requires the `MANAGE_ROOM` permission. Fields that are not sent are left unchanged.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RoomId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateRoomRequest"
+            example:
+              name: General 2
+              motd: New message of the day
+      responses:
+        "200":
+          description: Updated room
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoomSummary"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Chat rooms]
+      summary: Delete a room
+      description: Only the room owner can delete a room.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RoomId"
+      responses:
+        "200":
+          $ref: "#/components/responses/EmptyObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /api/chatrooms/{id}/overview:
     get:
       tags: [Chat rooms]
       summary: Get a chat room overview
+      description: Authentication is optional for public rooms. Private rooms require membership.
       security:
         - BearerAuth: []
+        - {}
       parameters:
         - $ref: "#/components/parameters/RoomId"
       responses:
@@ -212,10 +469,132 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/chatrooms/{id}/avatar:
+    get:
+      tags: [Chat rooms]
+      summary: Get the avatar of a room
+      description: Authentication is not required, so the URL can be used directly in `<img>`.
+      parameters:
+        - $ref: "#/components/parameters/RoomId"
+      responses:
+        "200":
+          description: Avatar image
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Chat rooms]
+      summary: Set the avatar of a room
+      description: Requires the `MANAGE_ROOM` permission. Only image files are accepted.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RoomId"
+        - name: X-File-Name
+          in: header
+          required: false
+          description: Original file name, the extension decides the image type. Ignored for multipart uploads.
+          schema:
+            type: string
+          example: logo.png
+      requestBody:
+        required: true
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+              required: [file]
+      responses:
+        "200":
+          description: Updated room
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoomSummary"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    delete:
+      tags: [Chat rooms]
+      summary: Remove the avatar of a room
+      description: Requires the `MANAGE_ROOM` permission.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RoomId"
+      responses:
+        "200":
+          description: Updated room
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RoomSummary"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/chatrooms/{id}/invite-code:
+    post:
+      tags: [Chat rooms]
+      summary: Replace the invite code of a private room
+      description: Requires the `MANAGE_ROOM` permission. A new code is generated if none is sent.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RoomId"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ResetInviteCodeRequest"
+            example:
+              invite_code: my-new-code
+      responses:
+        "200":
+          description: New invite code
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/InviteCode"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /api/chatrooms/{id}/join:
     post:
       tags: [Chat rooms]
       summary: Join a chat room
+      description: Private rooms require the invite code. Banned users cannot join.
       security:
         - BearerAuth: []
       parameters:
@@ -244,6 +623,7 @@ paths:
     post:
       tags: [Chat rooms]
       summary: Leave a chat room
+      description: The room owner cannot leave. With `silent_leave` the other members are not notified.
       security:
         - BearerAuth: []
       parameters:
@@ -269,24 +649,156 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/chatrooms/{id}/members:
+    get:
+      tags: [Room members]
+      summary: List the members of a room
+      description: The caller must be in the room. Banned members are only listed with the `BAN_MEMBERS` permission.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RoomId"
+      responses:
+        "200":
+          description: Members of the room
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MemberList"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/chatrooms/{id}/members/{userId}/{action}:
+    post:
+      tags: [Room members]
+      summary: Kick, ban, unban, mute or unmute a member
+      description: |
+        | Action | Permission |
+        | :--- | :--- |
+        | `kick` | `KICK_MEMBERS` |
+        | `ban`, `unban` | `BAN_MEMBERS` |
+        | `mute`, `unmute` | `MUTE_MEMBERS` |
+
+        The room owner cannot be targeted. Only the owner can target an admin.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RoomId"
+        - $ref: "#/components/parameters/TargetUserId"
+        - name: action
+          in: path
+          required: true
+          schema:
+            type: string
+            enum: [kick, ban, unban, mute, unmute]
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModerationRequest"
+            example:
+              reason: Spam
+      responses:
+        "200":
+          $ref: "#/components/responses/EmptyObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/chatrooms/{id}/members/{userId}/permissions:
+    put:
+      tags: [Room members]
+      summary: Set the permissions of a member
+      description: |
+        Requires the `GRANT_PERMISSIONS` permission. Only the owner can grant `GRANT_PERMISSIONS`.
+
+        | Bit | Value | Permission |
+        | :--- | :--- | :--- |
+        | 0 | 1 | `SEND_MESSAGES` |
+        | 1 | 2 | `EDIT_MESSAGES` |
+        | 2 | 4 | `DELETE_MESSAGES` |
+        | 3 | 8 | `KICK_MEMBERS` |
+        | 4 | 16 | `BAN_MEMBERS` |
+        | 5 | 32 | `MANAGE_ROOM` |
+        | 6 | 64 | `MUTE_MEMBERS` |
+        | 7 | 128 | `GRANT_PERMISSIONS` |
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RoomId"
+        - $ref: "#/components/parameters/TargetUserId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SetPermissionsRequest"
+            example:
+              permission_bits: 27
+      responses:
+        "200":
+          $ref: "#/components/responses/EmptyObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /api/chatrooms/{id}/transfer-ownership:
+    post:
+      tags: [Room members]
+      summary: Transfer the ownership of a room
+      description: Only the owner can transfer ownership. The new owner must be in the room.
+      security:
+        - BearerAuth: []
+      parameters:
+        - $ref: "#/components/parameters/RoomId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransferOwnershipRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/EmptyObject"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /api/chatrooms/{id}/history:
     get:
       tags: [Messages]
       summary: Get chat history
       description: |
         Authentication is optional. If supplied, an invalid or expired session is rejected.
-        Results are returned from oldest to newest. Attachments are currently not persisted by the application.
+        Results are returned from oldest to newest.
       security:
         - BearerAuth: []
         - {}
       parameters:
         - $ref: "#/components/parameters/RoomId"
-        - name: limit
-          in: query
-          required: false
-          description: Optional service-level result limit.
-          schema:
-            type: integer
+        - $ref: "#/components/parameters/Limit"
         - name: before_message
           in: query
           required: false
@@ -310,11 +822,51 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
+  /api/chatrooms/{id}/search:
+    get:
+      tags: [Messages]
+      summary: Search messages in a room
+      description: Searches the message content, with the same pagination as the history endpoint.
+      security:
+        - BearerAuth: []
+        - {}
+      parameters:
+        - $ref: "#/components/parameters/RoomId"
+        - name: q
+          in: query
+          required: true
+          description: Text to look for.
+          schema:
+            type: string
+        - $ref: "#/components/parameters/Limit"
+        - name: before_message
+          in: query
+          required: false
+          description: Message UUID used as the pagination cursor.
+          schema:
+            type: string
+            format: uuid
+      responses:
+        "200":
+          description: Matching messages, ordered oldest to newest
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MessageHistory"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          $ref: "#/components/responses/Forbidden"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
   /api/chatrooms/{id}/messages:
     post:
       tags: [Messages]
       summary: Send a message to a chat room
-      description: Uploaded file contents are accepted as Base64 but are not persisted yet.
+      description: Uploaded file contents are accepted as Base64 and stored on the server.
       security:
         - BearerAuth: []
       parameters:
@@ -328,8 +880,12 @@ paths:
             example:
               message_content: Hello, everyone!
       responses:
-        "200":
-          $ref: "#/components/responses/EmptyObject"
+        "201":
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatMessage"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -343,6 +899,7 @@ paths:
     patch:
       tags: [Messages]
       summary: Edit a message
+      description: Only the author can edit a message.
       security:
         - BearerAuth: []
       parameters:
@@ -359,7 +916,11 @@ paths:
               keep_attachments: false
       responses:
         "200":
-          $ref: "#/components/responses/EmptyObject"
+          description: Edited message
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChatMessage"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
@@ -371,6 +932,7 @@ paths:
     delete:
       tags: [Messages]
       summary: Delete a message
+      description: The author, or a member with the `DELETE_MESSAGES` permission, can delete a message. Its attachments are deleted too.
       security:
         - BearerAuth: []
       parameters:
@@ -395,6 +957,11 @@ components:
       scheme: bearer
       bearerFormat: session ID
       description: Use the session_id returned by POST /api/auth/login.
+    SessionQuery:
+      type: apiKey
+      in: query
+      name: session_id
+      description: Same session ID as a query parameter, only accepted by GET /api/events.
 
   parameters:
     UserId:
@@ -404,7 +971,22 @@ components:
       schema:
         type: string
         format: uuid
+    TargetUserId:
+      name: userId
+      in: path
+      required: true
+      description: UUID of the member the operation is applied to.
+      schema:
+        type: string
+        format: uuid
     RoomId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    AssetId:
       name: id
       in: path
       required: true
@@ -418,6 +1000,19 @@ components:
       schema:
         type: string
         format: uuid
+    InviteCode:
+      name: code
+      in: path
+      required: true
+      schema:
+        type: string
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Page size. Defaults to 50 and is capped at 100.
+      schema:
+        type: integer
 
   schemas:
     Error:
@@ -437,7 +1032,20 @@ components:
         display_name:
           type: string
           nullable: true
-      required: [uuid, username, display_name]
+        avatar:
+          type: string
+          format: uri
+          nullable: true
+          description: URL of the avatar asset, null when the user has none.
+        presence:
+          $ref: "#/components/schemas/Presence"
+        status_text:
+          type: string
+          nullable: true
+      required: [uuid, username, display_name, avatar, presence, status_text]
+    Presence:
+      type: string
+      enum: [ONLINE, OFFLINE, AWAY, BUSY]
     RegisterRequest:
       type: object
       properties:
@@ -465,18 +1073,52 @@ components:
         session_id:
           type: string
       required: [session_id]
+    UpdateProfileRequest:
+      type: object
+      properties:
+        display_name:
+          type: string
+          description: 1-64 characters.
+        avatar:
+          type: string
+          format: uuid
+          nullable: true
+          description: UUID of an uploaded image asset, null removes the avatar.
+        presence:
+          $ref: "#/components/schemas/Presence"
+        status_text:
+          type: string
+          description: Up to 128 characters, an empty string clears it.
+    UploadedAsset:
+      type: object
+      properties:
+        asset_uuid:
+          type: string
+          format: uuid
+        url:
+          type: string
+          format: uri
+        name:
+          type: string
+          description: Original file name.
+      required: [asset_uuid, url, name]
     CreateRoomRequest:
       type: object
       properties:
+        name:
+          type: string
+          description: 1-64 characters.
         motd:
           type: string
           nullable: true
+          description: Up to 512 characters.
         is_public:
           type: boolean
           default: true
         invite_code:
           type: string
-          description: Optional invite code. Private rooms generate one when omitted.
+          description: Optional invite code (4-32 letters, digits, `-` or `_`). Private rooms generate one when omitted. Ignored for public rooms.
+      required: [name]
     CreateRoomResponse:
       type: object
       properties:
@@ -486,40 +1128,116 @@ components:
         invite_code:
           type: string
           nullable: true
-      required: [room_uuid, invite_code]
-    RoomListing:
+        invite_link:
+          type: string
+          nullable: true
+          description: Relative link that previews the room with GET; join with POST on `{invite_link}/join`.
+      required: [room_uuid, invite_code, invite_link]
+    UpdateRoomRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        motd:
+          type: string
+    ResetInviteCodeRequest:
+      type: object
+      properties:
+        invite_code:
+          type: string
+    InviteCode:
+      type: object
+      properties:
+        invite_code:
+          type: string
+        invite_link:
+          type: string
+      required: [invite_code, invite_link]
+    RoomSummary:
       type: object
       properties:
         roomUUID:
           type: string
           format: uuid
+        name:
+          type: string
         motd:
           type: string
           nullable: true
+        avatar:
+          type: string
+          format: uri
+          nullable: true
+        createdAt:
+          type: integer
+          format: int64
+          description: Unix timestamp in milliseconds.
         members:
           type: integer
-      required: [roomUUID, motd, members]
+          description: Number of members currently in the room.
+      required: [roomUUID, name, motd, avatar, createdAt, members]
     PublicRoomListing:
       type: object
       properties:
         public_rooms:
           type: array
           items:
-            $ref: "#/components/schemas/RoomListing"
+            $ref: "#/components/schemas/RoomSummary"
       required: [public_rooms]
+    JoinedRoomListing:
+      type: object
+      properties:
+        rooms:
+          type: array
+          items:
+            $ref: "#/components/schemas/RoomSummary"
+      required: [rooms]
+    JoinedRoom:
+      type: object
+      properties:
+        room_uuid:
+          type: string
+          format: uuid
+      required: [room_uuid]
     RoomOverview:
       type: object
       properties:
+        roomUUID:
+          type: string
+          format: uuid
+        name:
+          type: string
         motd:
           type: string
           nullable: true
+        avatar:
+          type: string
+          format: uri
+          nullable: true
+        createdAt:
+          type: integer
+          format: int64
+          description: Unix timestamp in milliseconds.
+        is_public:
+          type: boolean
         owner:
           type: string
-        member_names:
+          description: Display name of the owner.
+        owner_uuid:
+          type: string
+          format: uuid
+        member_count:
+          type: integer
+        members:
           type: array
+          description: First 50 members currently in the room.
           items:
-            type: string
-      required: [motd, owner, member_names]
+            $ref: "#/components/schemas/User"
+        invite_code:
+          type: string
+          nullable: true
+          description: Only set for members with the MANAGE_ROOM permission.
+      required: [roomUUID, name, motd, avatar, createdAt, is_public, owner, owner_uuid, member_count, members, invite_code]
     JoinRoomRequest:
       type: object
       properties:
@@ -533,17 +1251,63 @@ components:
           default: false
         reason:
           type: string
+    Member:
+      allOf:
+        - $ref: "#/components/schemas/User"
+        - type: object
+          properties:
+            joined_at:
+              type: integer
+              format: int64
+              description: Unix timestamp in milliseconds.
+            permission_bits:
+              type: integer
+              description: Bit mask of the member's permissions (see the permissions endpoint).
+            status_bits:
+              type: integer
+              description: "Bit mask of the member's status: 1 = muted, 2 = banned."
+            is_in_room:
+              type: boolean
+              description: false for a banned member, whose relation is kept to block rejoining.
+          required: [joined_at, permission_bits, status_bits, is_in_room]
+    MemberList:
+      type: object
+      properties:
+        members:
+          type: array
+          items:
+            $ref: "#/components/schemas/Member"
+      required: [members]
+    ModerationRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+    SetPermissionsRequest:
+      type: object
+      properties:
+        permission_bits:
+          type: integer
+          minimum: 0
+          maximum: 255
+      required: [permission_bits]
+    TransferOwnershipRequest:
+      type: object
+      properties:
+        new_owner:
+          type: string
+          format: uuid
+      required: [new_owner]
     UploadedFile:
       type: object
-      description: Base64 file data. Files are not persisted by the current implementation.
+      description: Base64 file data, stored on the server as `usercontent/<asset uuid>.<extension>`.
       properties:
         attachment:
           type: string
           format: byte
-        size:
-          type: integer
-          format: int64
-          description: File size in bytes; defaults to the decoded byte length.
+        file_name:
+          type: string
+          description: Original file name, the extension decides how the file is served.
       required: [attachment]
     SendMessageRequest:
       type: object
@@ -551,8 +1315,10 @@ components:
         message_content:
           type: string
           nullable: true
+          description: Up to 4000 characters; may be empty when files are attached.
         uploaded_files:
           type: array
+          maxItems: 10
           items:
             $ref: "#/components/schemas/UploadedFile"
     EditMessageRequest:
@@ -570,6 +1336,12 @@ components:
         chatMessageUUID:
           type: string
           format: uuid
+        roomUUID:
+          type: string
+          format: uuid
+        senderUUID:
+          type: string
+          format: uuid
         sender:
           type: string
           description: Sender's display name or username.
@@ -585,7 +1357,7 @@ components:
           type: integer
           format: int64
           description: Unix timestamp in milliseconds.
-      required: [chatMessageUUID, sender, content, attachments, unixTimestamp]
+      required: [chatMessageUUID, roomUUID, senderUUID, sender, content, attachments, unixTimestamp]
     MessageHistory:
       type: object
       properties:
@@ -594,6 +1366,116 @@ components:
           items:
             $ref: "#/components/schemas/ChatMessage"
       required: [messages]
+    RealtimeEvent:
+      type: object
+      description: One SSE data segment. `payload` is a JSON document encoded as a string.
+      properties:
+        type:
+          type: string
+          enum:
+            - CONNECTED
+            - MESSAGE_CREATED
+            - MESSAGE_EDITED
+            - MESSAGE_DELETED
+            - MEMBER_JOINED
+            - MEMBER_LEFT
+            - MEMBER_KICKED
+            - MEMBER_BANNED
+            - MEMBER_UNBANNED
+            - MEMBER_MUTED
+            - MEMBER_UNMUTED
+            - MEMBER_PERMISSIONS_CHANGED
+            - OWNER_TRANSFERRED
+            - ROOM_UPDATED
+            - ROOM_DELETED
+            - USER_UPDATED
+        payload:
+          type: string
+      required: [type, payload]
+    ConnectedPayload:
+      type: object
+      properties:
+        user_uuid:
+          type: string
+          format: uuid
+    MessageDeletedPayload:
+      type: object
+      properties:
+        room_uuid:
+          type: string
+          format: uuid
+        message_uuid:
+          type: string
+          format: uuid
+        deleted_by:
+          type: string
+          format: uuid
+    MemberJoinedPayload:
+      type: object
+      properties:
+        room_uuid:
+          type: string
+          format: uuid
+        user:
+          $ref: "#/components/schemas/User"
+    MemberLeftPayload:
+      type: object
+      properties:
+        room_uuid:
+          type: string
+          format: uuid
+        user:
+          $ref: "#/components/schemas/User"
+        reason:
+          type: string
+          nullable: true
+    MemberModeratedPayload:
+      type: object
+      properties:
+        room_uuid:
+          type: string
+          format: uuid
+        user_uuid:
+          type: string
+          format: uuid
+        actor_uuid:
+          type: string
+          format: uuid
+        reason:
+          type: string
+          nullable: true
+    PermissionsChangedPayload:
+      type: object
+      properties:
+        room_uuid:
+          type: string
+          format: uuid
+        user_uuid:
+          type: string
+          format: uuid
+        actor_uuid:
+          type: string
+          format: uuid
+        permission_bits:
+          type: integer
+    OwnerTransferredPayload:
+      type: object
+      properties:
+        room_uuid:
+          type: string
+          format: uuid
+        old_owner:
+          type: string
+          format: uuid
+        new_owner:
+          type: string
+          format: uuid
+    RoomDeletedPayload:
+      type: object
+      properties:
+        room_uuid:
+          type: string
+          format: uuid
 
   responses:
     EmptyObject:
@@ -623,7 +1505,7 @@ components:
           schema:
             $ref: "#/components/schemas/Error"
     NotFound:
-      description: Requested user, room, or message was not found
+      description: Requested user, room, message, or file was not found
       content:
         application/json:
           schema:

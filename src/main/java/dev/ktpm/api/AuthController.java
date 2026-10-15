@@ -1,5 +1,8 @@
 package dev.ktpm.api;
 
+import java.util.UUID;
+
+import dev.ktpm.consts.RealtimeEventType;
 import dev.ktpm.service.IAuthenticationService;
 import dev.ktpm.service.IUserService;
 import io.javalin.http.Context;
@@ -8,10 +11,12 @@ import io.javalin.router.JavalinDefaultRoutingApi;
 public class AuthController {
 	private final IAuthenticationService authService;
 	private final IUserService userService;
+	private final SSEventDispatcher dispatcher;
 	
-	public AuthController(IAuthenticationService authService, IUserService userService) {
+	public AuthController(IAuthenticationService authService, IUserService userService, SSEventDispatcher dp) {
 		this.authService = authService;
 		this.userService = userService;
+		this.dispatcher = dp;
 	}
 	
 	public void registerRoutes(JavalinDefaultRoutingApi router) {
@@ -25,8 +30,8 @@ public class AuthController {
 		var body = Sputnik.body(ctx);
 		String username = Sputnik.require(body, "username");
 		String displayName = Sputnik.text(body, "display_name");
-		var user = authService.register(username, 
-			displayName != null ? displayName : username, 
+		var user = authService.register(username,
+			displayName != null ? displayName : username,
 			Sputnik.require(body, "password")
 		);
 		ctx.status(201);
@@ -40,6 +45,7 @@ public class AuthController {
 		if (sessionID == null) {
 			throw new APIException(401, "Invalid username or password");
 		}
+		announcePresence(authService.authenticate(sessionID));
 		ctx.json(Sputnik.obj("session_id", sessionID));
 	}
 	
@@ -48,11 +54,21 @@ public class AuthController {
 		if (token == null) {
 			throw new APIException(401, "Authentication required");
 		}
+		UUID user = authService.authenticate(token);
 		authService.logout(token);
+		dispatcher.disconnectSession(token); // also close the SSE streams of this session
+		announcePresence(user);
 		ctx.json(Sputnik.obj());
 	}
 	
 	public void getMe(Context ctx) {
 		ctx.json(Sputnik.user(userService.getPrivateUser(Sputnik.requireAuth(ctx, authService))));
+	}
+	
+	// login/logout changes presence so tell everyone sharing a room
+	private void announcePresence(UUID user) {
+		if (user != null) {
+			dispatcher.sendToPeers(user, RealtimeEventType.USER_UPDATED, Sputnik.user(userService.getPrivateUser(user)));
+		}
 	}
 }

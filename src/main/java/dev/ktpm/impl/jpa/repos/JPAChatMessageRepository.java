@@ -1,6 +1,7 @@
 package dev.ktpm.impl.jpa.repos;
 
 import java.net.URI;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -66,6 +67,34 @@ public class JPAChatMessageRepository implements IChatMessageRepository {
 	
 	@Override
 	public List<ChatMessage> getHistory(UUID roomUUID, UUID beforeMessage, int limit) {
+		return query(roomUUID, null, beforeMessage, limit);
+	}
+
+	@Override
+	public List<ChatMessage> search(UUID roomUUID, String query, UUID beforeMessage, int limit) {
+		return query(roomUUID, query, beforeMessage, limit);
+	}
+
+	@Override
+	public List<URI> deleteAllInRoom(UUID roomUUID) {
+		try (var man = runtime.open()) {
+			var all = man.eman.createQuery("""
+				SELECT m FROM ChatMessageEntity m WHERE m.chatRoomUUID = :room_uuid
+			""", ChatMessageEntity.class)
+			.setParameter("room_uuid", roomUUID)
+			.getResultList();
+			var attachments = new ArrayList<URI>();
+			for (ChatMessageEntity entity : all) {
+				// bulk delete cant clean the element collection, so remove entity by entity
+				entity.getAttachments().forEach(url -> attachments.add(URI.create(url)));
+				man.eman.remove(entity);
+			}
+			return attachments;
+		}
+	}
+	
+	// text = null means no content filter (history)
+	private List<ChatMessage> query(UUID roomUUID, String text, UUID beforeMessage, int limit) {
 		try (var man = runtime.open()) {
 			ChatMessageEntity before = null;
 			if (beforeMessage != null) {
@@ -77,13 +106,15 @@ public class JPAChatMessageRepository implements IChatMessageRepository {
 			// return all message that is before or at the beforeMsg sent time
 			// this is not good for exact OoI (same ms) because fuck you thats why...
 			// but hey, AT LEAST its deterministic
-			// beforeMessage == null thì lấy từ tin mới nhất
+			// beforeMessage == null then get from newest
 			var query = man.eman.createQuery("""
 				SELECT m FROM ChatMessageEntity m
 				WHERE m.chatRoomUUID = :room_uuid
 				""" + (before == null ? "" : /* if msg id is null, ret newest */ """
 				AND m.sentTimestamp <= :before_timestamp
 				AND m.chatMessageUUID != :before_message
+				""") + (text == null ? "" : """
+				AND LOWER(m.content) LIKE :pattern ESCAPE '!'
 				""") + """
 				ORDER BY m.sentTimestamp DESC, m.chatMessageUUID DESC
 			""", ChatMessageEntity.class)
@@ -91,6 +122,15 @@ public class JPAChatMessageRepository implements IChatMessageRepository {
 			if (before != null) {
 				query.setParameter("before_timestamp", before.getSentTimestamp())
 				.setParameter("before_message", beforeMessage);
+			}
+			if (text != null) {
+				// escape ! % _ so users cant sneak shit in
+				// aka wildcards
+				query.setParameter("pattern", "%" + text.toLowerCase()
+					.replace("!", "!!")
+					.replace("%", "!%")
+					.replace("_", "!_") + "%"
+				);
 			}
 			return query.setMaxResults(limit).getResultList().stream()
 				.map(ChatMessageEntity::toModel)

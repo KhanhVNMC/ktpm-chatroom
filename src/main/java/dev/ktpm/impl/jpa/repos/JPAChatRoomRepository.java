@@ -42,7 +42,9 @@ public class JPAChatRoomRepository implements IChatRoomRepository {
 				return null;
 			}
 			existing.setOwnerUUID(room.owner());
+			existing.setName(room.name());
 			existing.setMotd(room.motd());
+			existing.setAvatar(room.avatar() == null ? null : room.avatar().toString());
 			existing.setPublic(room.isPublic());
 			existing.setInviteCode(room.inviteCode());
 			return existing.toModel();
@@ -57,13 +59,40 @@ public class JPAChatRoomRepository implements IChatRoomRepository {
 	}
 	
 	@Override
+	public Optional<ChatRoom> getByInviteCode(String inviteCode) {
+		try (var man = runtime.open()) {
+			return man.eman.createQuery("""
+				SELECT r FROM ChatRoomEntity r WHERE r.inviteCode = :invite_code
+			""", ChatRoomEntity.class)
+			.setParameter("invite_code", inviteCode)
+			.getResultList().stream().findFirst().map(ChatRoomEntity::toModel);
+		}
+	}
+	
+	@Override
 	public List<ChatRoom> listPublicRooms(int limit) {
 		try (var man = runtime.open()) {
 			return man.eman.createQuery("""
 				SELECT r FROM ChatRoomEntity r
 				WHERE r.isPublic = true
-				ORDER BY r.uuid
+				ORDER BY r.createdAt DESC, r.uuid
 			""", ChatRoomEntity.class)
+			.setMaxResults(limit)
+			.getResultList().stream()
+			.map(ChatRoomEntity::toModel).toList();
+		}
+	}
+	
+	@Override
+	public List<ChatRoom> listJoinedRooms(UUID userUUID, int limit) {
+		try (var man = runtime.open()) {
+			return man.eman.createQuery("""
+				SELECT r FROM ChatRoomEntity r
+				JOIN RoomMembershipEntity m ON m.id.roomUUID = r.uuid
+				WHERE m.id.userUUID = :user_uuid AND m.isInRoom = true
+				ORDER BY r.createdAt DESC, r.uuid
+			""", ChatRoomEntity.class)
+			.setParameter("user_uuid", userUUID)
 			.setMaxResults(limit)
 			.getResultList().stream()
 			.map(ChatRoomEntity::toModel).toList();

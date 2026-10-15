@@ -37,7 +37,7 @@ public class ChatMessageEntity {
 	@Column(name = "chat_room_uuid", nullable = false)
 	private UUID chatRoomUUID;
 	
-	@Column(name = "content")
+	@Column(name = "content", length = 4000)
 	private String content;
 	
 	@ElementCollection

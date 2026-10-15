@@ -54,6 +54,9 @@ public class JPAUserRepository implements IUserRepository {
 			}
 			existing.setUsername(user.username());
 			existing.setDisplayName(user.displayName());
+			existing.setAvatar(user.avatar());
+			existing.setPresence(user.presence());
+			existing.setStatusText(user.statusText());
 			return existing.toModel();
 		}
 	}

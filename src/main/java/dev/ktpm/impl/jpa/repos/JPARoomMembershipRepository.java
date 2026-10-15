@@ -60,8 +60,8 @@ public class JPARoomMembershipRepository implements IRoomMembershipRepository {
 		// mostly for listing members
 		try (var man = runtime.open()) {
 			return man.eman.createQuery("""
-				SELECT m.id.userUUID FROM RoomMembershipEntity m
-				WHERE m.id.roomUUID = :room_uuid
+					SELECT m.id.userUUID FROM RoomMembershipEntity m
+					WHERE m.id.roomUUID = :room_uuid AND m.isInRoom = true
 				ORDER BY m.joinedAt, m.id.userUUID
 			""", UUID.class)
 			.setParameter("room_uuid", roomUUID)
@@ -74,13 +74,26 @@ public class JPARoomMembershipRepository implements IRoomMembershipRepository {
 		try (var man = runtime.open()) {
 			return man.eman.createQuery("""
 				SELECT COUNT(m) FROM RoomMembershipEntity m
-				WHERE m.id.roomUUID = :room_uuid
+				WHERE m.id.roomUUID = :room_uuid AND m.isInRoom = true
 			""", Long.class)
 			.setParameter("room_uuid", roomUUID)
 			.getSingleResult().intValue();
 		}
 	}
 	
+	@Override
+	public List<UUID> getPeerUUIDs(UUID userUUID) {
+		try (var man = runtime.open()) {
+			return man.eman.createQuery("""
+				SELECT DISTINCT p.id.userUUID FROM RoomMembershipEntity m, RoomMembershipEntity p
+				WHERE m.id.userUUID = :user_uuid AND m.isInRoom = true
+				AND p.id.roomUUID = m.id.roomUUID AND p.isInRoom = true
+			""", UUID.class)
+			.setParameter("user_uuid", userUUID)
+			.getResultList();
+		}
+	}
+
 	@Override
 	public void create(RoomMembership membership) {
 		try (var man = runtime.open()) {
@@ -101,6 +114,7 @@ public class JPARoomMembershipRepository implements IRoomMembershipRepository {
 			existing.setJoinedAt(membership.joinedAt());
 			existing.setPermissionBits(membership.permissionBits());
 			existing.setStatusBits(membership.statusBits());
+			existing.setInRoom(membership.isInRoom());
 		}
 	}
 	
@@ -110,6 +124,17 @@ public class JPARoomMembershipRepository implements IRoomMembershipRepository {
 			man.eman.remove(man.eman.getReference(
 				RoomMembershipEntity.class, new RoomMembershipId(roomUUID, userUUID)
 			));
+		}
+	}
+
+	@Override
+	public void deleteAllInRoom(UUID roomUUID) {
+		try (var man = runtime.open()) {
+			man.eman.createQuery("""
+				DELETE FROM RoomMembershipEntity m WHERE m.id.roomUUID = :room_uuid
+			""")
+			.setParameter("room_uuid", roomUUID)
+			.executeUpdate();
 		}
 	}
 }

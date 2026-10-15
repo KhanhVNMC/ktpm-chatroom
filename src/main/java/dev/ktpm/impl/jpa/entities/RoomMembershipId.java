@@ -21,19 +21,19 @@ public class RoomMembershipId implements Serializable {
 	
 	@Column(name = "user_uuid")
 	private UUID userUUID;
-
+	
 	public RoomMembershipId(UUID roomUUID, UUID userUUID) {
 		this.roomUUID = roomUUID;
 		this.userUUID = userUUID;
 	}
-
+	
 	@Override
 	public boolean equals(Object other) {
 		if (this == other) return true;
 		if (!(other instanceof RoomMembershipId that)) return false;
 		return Objects.equals(roomUUID, that.roomUUID) && Objects.equals(userUUID, that.userUUID);
 	}
-
+	
 	@Override
 	public int hashCode() {
 		return Objects.hash(roomUUID, userUUID);

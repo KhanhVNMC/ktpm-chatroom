@@ -1,0 +1,21 @@
+package dev.ktpm.consts;
+
+// type of every data segment: {"type":<enum>,"payload":"<payload>"}
+public enum RealtimeEventType {
+	CONNECTED,
+	MESSAGE_CREATED,
+	MESSAGE_EDITED,
+	MESSAGE_DELETED,
+	MEMBER_JOINED,
+	MEMBER_LEFT,
+	MEMBER_KICKED,
+	MEMBER_BANNED,
+	MEMBER_UNBANNED,
+	MEMBER_MUTED,
+	MEMBER_UNMUTED,
+	MEMBER_PERMISSIONS_CHANGED,
+	OWNER_TRANSFERRED,
+	ROOM_UPDATED,
+	ROOM_DELETED,
+	USER_UPDATED
+}

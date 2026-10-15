@@ -4,12 +4,12 @@ import dev.ktpm.model.AttachmentAsset;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.nio.file.Path;
 import java.util.UUID;
 
 @Entity
@@ -19,24 +19,23 @@ import java.util.UUID;
 public class AttachmentAssetEntity {
 	@Id
 	@Column(name = "uuid")
-	private UUID uuid;
+	private UUID id;
 	
-	@Lob
-	@Column(name = "attachment_data")
-	private byte attachment[];
+	@Column(name = "file_path", nullable = false)
+	private String path;
 	
-	@Column(name = "size", nullable = false)
-	private long size;
+	@Column(name = "original_name")
+	private String originalName;
 	
 	public static AttachmentAssetEntity fromModel(AttachmentAsset model) {
 		var entity = new AttachmentAssetEntity();
-		entity.uuid = model.uuid();
-		entity.attachment = model.attachment();
-		entity.size = model.size();
+		entity.id = model.id();
+		entity.path = model.path().toString();
+		entity.originalName = model.originalName();
 		return entity;
 	}
 	
 	public AttachmentAsset toModel() {
-		return new AttachmentAsset(uuid, attachment, size);
+		return new AttachmentAsset(id, Path.of(path), originalName);
 	}
 }

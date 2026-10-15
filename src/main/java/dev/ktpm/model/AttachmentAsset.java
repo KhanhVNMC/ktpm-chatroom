@@ -1,5 +1,7 @@
 package dev.ktpm.model;
 
+import java.nio.file.Path;
 import java.util.UUID;
 
-public record AttachmentAsset(UUID uuid, byte[] attachment, long size) {}
+// SSP (server side path): the real file lives on the filesystem, db only keeps the path + original name
+public record AttachmentAsset(UUID id, Path path, String originalName) {}

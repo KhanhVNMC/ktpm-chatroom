@@ -8,11 +8,11 @@ import jakarta.persistence.EntityTransaction;
 
 public final class HibernateRuntime implements AutoCloseable {
 	private final SessionFactory sessionFactory;
-
+	
 	private HibernateRuntime(SessionFactory sessionFactory) {
 		this.sessionFactory = sessionFactory;
 	}
-
+	
 	public static HibernateRuntime bootstrap() {
 		SessionFactory sessionFactory = new Configuration()
 			.configure("hibernate.cfg.xml")
@@ -20,7 +20,7 @@ public final class HibernateRuntime implements AutoCloseable {
 		;
 		return new HibernateRuntime(sessionFactory);
 	}
-
+	
 	public SessionFactory sessionFactory() {
 		return sessionFactory;
 	}

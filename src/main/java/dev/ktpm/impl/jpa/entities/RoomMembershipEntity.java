@@ -5,6 +5,7 @@ import jakarta.persistence.Column;
 import jakarta.persistence.EmbeddedId;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Table;
+import org.hibernate.annotations.ColumnDefault;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
@@ -25,17 +26,23 @@ public class RoomMembershipEntity {
 	
 	@Column(name = "status_bits", nullable = false)
 	private int statusBits;
-
+	
+	// false = relation is still here but they got beaned
+	@ColumnDefault("true")
+	@Column(name = "is_in_room", nullable = false)
+	private boolean isInRoom;
+	
 	public static RoomMembershipEntity fromModel(RoomMembership model) {
 		var entity = new RoomMembershipEntity();
 		entity.id = new RoomMembershipId(model.roomUUID(), model.userUUID());
 		entity.joinedAt = model.joinedAt();
 		entity.permissionBits = model.permissionBits();
 		entity.statusBits = model.statusBits();
+		entity.isInRoom = model.isInRoom();
 		return entity;
 	}
-
+	
 	public RoomMembership toModel() {
-		return new RoomMembership(id.getRoomUUID(), id.getUserUUID(), joinedAt, permissionBits, statusBits);
+		return new RoomMembership(id.getRoomUUID(), id.getUserUUID(), joinedAt, permissionBits, statusBits, isInRoom);
 	}
 }

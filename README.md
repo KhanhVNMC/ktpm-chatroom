@@ -7,7 +7,7 @@
 ## 3. Tài liệu API (API Documentation)
 
 ### Kiểm tra trạng thái hệ thống
-| Method | Endpoint | Mô tả | Input |   |
+| Method | Endpoint | Mô tả | Input | Thành công |
 | :--- | :--- | :--- | :--- | :--- |
 | `GET` | `/api/health` | Kiểm tra hệ thống có đang hoạt động hay không |   | `200`, nội dung text `OK` |
 
@@ -15,9 +15,9 @@
 | Method | Endpoint | Mô tả | Input | Phản hồi thành công |
 | :--- | :--- | :--- | :--- | :--- |
 | `POST` | `/api/auth/register` | Đăng ký tài khoản mới | Username, password, displayname | `201`, thông tin người dùng |
-| `POST` | `/api/auth/login` | Đăng nhập vào hệ thống | Tài khoản, mật khẩu | `200`, trả về session id |
+| `POST` | `/api/auth/login` | Đăng nhập vào hệ thống | Username, password | `200`, trả về session id |
 | `POST` | `/api/auth/logout` | Đăng xuất khỏi hệ thống |   | `200`, `{}` |
-| `GET` | `/api/auth/me` | Lấy thông tin cá nhân của người dùng hiện tại |   | (Thành công trả về thông tin user) |
+| `GET` | `/api/auth/me` | Lấy thông tin cá nhân của người dùng hiện tại |   | Thông tin user |
 | `GET` | `/api/user/{id}` | Lấy thông tin của một người dùng bất kỳ |   | `200`, thông tin người dùng |
 
 ### Quản lý Phòng chat (Chatrooms)
@@ -34,5 +34,5 @@
 | :--- | :--- | :--- | :--- | :--- |
 | `GET` | `/api/chatrooms/{id}/history?limit={n}&before_message={uuid}` | Tải lịch sử tin nhắn của phòng chat |   | `200`, danh sách tin nhắn |
 | `POST` | `/api/chatrooms/{id}/messages` | Gửi tin nhắn mới vào phòng chat | Nội dung tin nhắn, danh sách file tải lên | `200`, `{}` |
-| `PATCH`| `/api/chatrooms/{id}/messages/{messageId}`| Chỉnh sửa nội dung một tin nhắn đã gửi | Nội dung mới, giữ hay bỏ file đính kèm | `200`, `{}` |
-| `DELETE`| `/api/chatrooms/{id}/messages/{messageId}`| Xóa hoặc thu hồi một tin nhắn |   | (Thành công xóa/thu hồi tin) |
+| `PATCH`| `/api/chatrooms/{id}/messages/{messageId}`| Chỉnh sửa nội dung tin nhắn đã gửi | Nội dung mới, giữ hay bỏ file đính kèm | `200`, `{}` |
+| `DELETE`| `/api/chatrooms/{id}/messages/{messageId}`| Xóa một tin nhắn |   | (Thành công xóa/thu hồi tin) |

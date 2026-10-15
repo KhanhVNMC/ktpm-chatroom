@@ -14,20 +14,20 @@
 ### Xác thực và Người dùng (Authentication & User)
 | Method | Endpoint | Mô tả | Input | Phản hồi thành công |
 | :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/api/auth/register` | Đăng ký tài khoản người dùng mới | Tài khoản, mật khẩu, tên hiển thị | `201`, thông tin người dùng |
+| `POST` | `/api/auth/register` | Đăng ký tài khoản mới | Username, password, displayname | `201`, thông tin người dùng |
 | `POST` | `/api/auth/login` | Đăng nhập vào hệ thống | Tài khoản, mật khẩu | `200`, trả về session id |
 | `POST` | `/api/auth/logout` | Đăng xuất khỏi hệ thống |   | `200`, `{}` |
 | `GET` | `/api/auth/me` | Lấy thông tin cá nhân của người dùng hiện tại |   | (Thành công trả về thông tin user) |
-| `GET` | `/api/user/{id}` | Lấy thông tin chi tiết của một người dùng bất kỳ |   | `200`, thông tin người dùng |
+| `GET` | `/api/user/{id}` | Lấy thông tin của một người dùng bất kỳ |   | `200`, thông tin người dùng |
 
 ### Quản lý Phòng chat (Chatrooms)
 | Method | Endpoint | Mô tả | Input | Phản hồi thành công |
 | :--- | :--- | :--- | :--- | :--- |
 | `POST` | `/api/chatrooms` | Tạo phòng chat mới | Lời chào, thiết lập công khai, mã mời | `201`, trả về ID phòng và mã mời |
 | `GET` | `/api/chatrooms/listing?limit={n}`| Lấy danh sách các phòng chat công khai |   | `200`, danh sách phòng công khai |
-| `GET` | `/api/chatrooms/{id}/overview` | Xem thông tin tổng quan của một phòng chat |   | `200`, thông tin tổng quan |
-| `POST` | `/api/chatrooms/{id}/join` | Tham gia vào phòng chat | Mã mời của phòng | `200`, `{}` |
-| `POST` | `/api/chatrooms/{id}/leave` | Rời khỏi phòng chat | Lý do rời, có rời im lặng hay không | (Thành công rời khỏi phòng) |
+| `GET` | `/api/chatrooms/{id}/overview` | Thông tin tổng quan của phòng chat |   | `200`, thông tin tổng quan |
+| `POST` | `/api/chatrooms/{id}/join` | Tham gia vào phòng chat | Mã mời phòng | `200`, `{}` |
+| `POST` | `/api/chatrooms/{id}/leave` | Rời khỏi phòng chat |  | (Thành công rời khỏi phòng) |
 
 ### Hệ thống Tin nhắn (Messages)
 | Method | Endpoint | Mô tả | Input | Phản hồi thành công |

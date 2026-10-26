@@ -44,7 +44,7 @@ public class ChatMessageController {
 
 	// login ko bắt buộc (phòng public ai cũng xem được)
 	public void getHistory(Context ctx) {
-		UUID requester = Sputnik.optionalAuth(ctx, authService);
+		UUID requester = Sputnik.optionalAuthenticatedUser(ctx);
 		var messages = new ArrayList<>(messageService.getHistory(
 			requester, UUID.fromString(ctx.pathParam("id")),
 			Sputnik.limit(ctx), beforeMessage(ctx)
@@ -52,9 +52,14 @@ public class ChatMessageController {
 		ctx.json(Sputnik.obj("messages", toJson(messages)));
 	}
 
+	// ko bắt buộc login, nhưng nếu có thì sẽ gửi event đến các peer trong phòng
+	public static UUID optionalAuthenticatedUser(Context ctx) {
+		return ctx.attribute(AuthenticationMiddleware.AUTHENTICATED_USER);
+	}
+
 	// GET q={text}&limit={LIMIT}&before_message={message_uuid}, like history
 	public void searchMessages(Context ctx) {
-		UUID requester = Sputnik.optionalAuth(ctx, authService);
+		UUID requester = Sputnik.optionalAuthenticatedUser(ctx);
 		String query = ctx.queryParam("q");
 		if (query == null || query.isBlank()) {
 			throw new APIException(400, "q is required");
@@ -68,7 +73,7 @@ public class ChatMessageController {
 
 	// uploaded_files: [{attachment: <base64>, file_name}], files get written to usercontent/ on the server
 	public void sendMessage(Context ctx) {
-		UUID sender = Sputnik.requireAuth(ctx, authService);
+		UUID sender = Sputnik.authenticatedUser(ctx);
 		var body = Sputnik.body(ctx);
 		UUID roomUUID = UUID.fromString(ctx.pathParam("id"));
 		var message = messageService.sendMessage(
@@ -81,7 +86,7 @@ public class ChatMessageController {
 	}
 
 	public void editMessage(Context ctx) {
-		UUID requester = Sputnik.requireAuth(ctx, authService);
+		UUID requester = Sputnik.authenticatedUser(ctx);
 		var body = Sputnik.body(ctx);
 		UUID roomUUID = UUID.fromString(ctx.pathParam("id"));
 		var message = messageService.editMessage(
@@ -96,7 +101,7 @@ public class ChatMessageController {
 	}
 
 	public void deleteMessage(Context ctx) {
-		UUID requester = Sputnik.requireAuth(ctx, authService);
+		UUID requester = Sputnik.authenticatedUser(ctx);
 		UUID roomUUID = UUID.fromString(ctx.pathParam("id"));
 		UUID messageUUID = UUID.fromString(ctx.pathParam("messageId"));
 		messageService.deleteMessage(requester, roomUUID, messageUUID);

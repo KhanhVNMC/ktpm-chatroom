@@ -54,7 +54,7 @@ public class AuthController {
 		if (token == null) {
 			throw new APIException(401, "Authentication required");
 		}
-		UUID user = authService.authenticate(token);
+		UUID user = Sputnik.authenticatedUser(ctx);
 		authService.logout(token);
 		dispatcher.disconnectSession(token); // also close the SSE streams of this session
 		announcePresence(user);
@@ -62,7 +62,7 @@ public class AuthController {
 	}
 	
 	public void getMe(Context ctx) {
-		ctx.json(Sputnik.user(userService.getPrivateUser(Sputnik.requireAuth(ctx, authService))));
+		ctx.json(Sputnik.user(userService.getPrivateUser(Sputnik.authenticatedUser(ctx))));
 	}
 	
 	// login/logout changes presence so tell everyone sharing a room

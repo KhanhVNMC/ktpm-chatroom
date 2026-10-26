@@ -25,10 +25,9 @@ public class EventController {
 		if (token == null) {
 			token = ctx.queryParam("session_id");
 		}
-		UUID user = token == null ? null : authService.authenticate(token);
-		if (user == null) {
-			throw new APIException(401, "Authentication required");
-		}
+		//Middleware sẽ xử lý authentication trước đó
+		UUID user = Sputnik.authenticatedUser(ctx);
+
 		String accept = ctx.header("Accept");
 		if (accept == null || !accept.contains("text/event-stream")) {
 			throw new APIException(406, "Accept: text/event-stream is required");

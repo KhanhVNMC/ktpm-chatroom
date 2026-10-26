@@ -23,7 +23,7 @@ public class AssetController {
 
 	// raw body (+ X-File-Name header) or multipart field "file" -> {asset_uuid, url}. used for user avatars
 	public void upload(Context ctx) {
-		Sputnik.requireAuth(ctx, authService);
+		Sputnik.authenticatedUser(ctx);
 		var file = Sputnik.upload(ctx);
 		var asset = assetService.upload(file.data(), file.originalName());
 		ctx.status(201);

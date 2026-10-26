@@ -47,7 +47,22 @@ public final class Sputnik {
 		String header = ctx.header("Authorization");
 		return header != null && header.startsWith("Bearer ") ? header.substring(7).trim() : null;
 	}
-	
+
+	// xac thuc middleware
+	public static UUID authenticatedUser(Context ctx) {
+		UUID user = ctx.attribute(AuthenticationMiddleware.AUTHENTICATED_USER);
+
+		if (user == null) {
+			throw new APIException(401, "Authentication required");
+		}
+
+		return user;
+	}
+
+	public static UUID optionalAuthenticatedUser(Context ctx) {
+		return ctx.attribute(AuthenticationMiddleware.AUTHENTICATED_USER);
+	}
+
 	/** null nếu ko gửi token, 401 nếu token sai/hết hạn */
 	public static UUID optionalAuth(Context ctx, IAuthenticationService authService) {
 		String token = token(ctx);

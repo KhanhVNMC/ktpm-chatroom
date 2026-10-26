@@ -35,7 +35,7 @@ public class RoomMemberController {
 	
 	// is_in_room = false == currently banned (only visible with BAN_MEMBER)
 	public void listMembers(Context ctx) {
-		UUID requester = Sputnik.requireAuth(ctx, authService);
+		UUID requester = Sputnik.authenticatedUser(ctx);
 		var members = memberService.listMembers(requester, UUID.fromString(ctx.pathParam("id"))).stream()
 		.map(m -> {
 			var json = Sputnik.user(userService.getPublicUser(requester, m.userUUID()));
@@ -50,7 +50,7 @@ public class RoomMemberController {
 	
 	// POST .../members/{userId}/{kick|ban|unban|mute|unmute}, body {reason?}
 	public void moderate(Context ctx) {
-		UUID actor = Sputnik.requireAuth(ctx, authService);
+		UUID actor = Sputnik.authenticatedUser(ctx);
 		UUID roomUUID = UUID.fromString(ctx.pathParam("id"));
 		UUID target = UUID.fromString(ctx.pathParam("userId"));
 		MemberAction action;
@@ -71,7 +71,7 @@ public class RoomMemberController {
 	
 	// body {permission_bits}, see RoomPermissions
 	public void setPermissions(Context ctx) {
-		UUID actor = Sputnik.requireAuth(ctx, authService);
+		UUID actor = Sputnik.authenticatedUser(ctx);
 		UUID roomUUID = UUID.fromString(ctx.pathParam("id"));
 		UUID target = UUID.fromString(ctx.pathParam("userId"));
 		var bits = Sputnik.body(ctx).path("permission_bits");
@@ -87,7 +87,7 @@ public class RoomMemberController {
 	
 	// body {new_owner: <user uuid>}
 	public void transferOwnership(Context ctx) {
-		UUID actor = Sputnik.requireAuth(ctx, authService);
+		UUID actor = Sputnik.authenticatedUser(ctx);
 		UUID roomUUID = UUID.fromString(ctx.pathParam("id"));
 		UUID newOwner = UUID.fromString(Sputnik.require(Sputnik.body(ctx), "new_owner"));
 		memberService.transferOwnership(actor, roomUUID, newOwner);

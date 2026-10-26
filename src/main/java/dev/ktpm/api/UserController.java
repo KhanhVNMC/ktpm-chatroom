@@ -29,14 +29,14 @@ public class UserController {
 	}
 	
 	public void getUser(Context ctx) {
-		UUID requester = Sputnik.optionalAuth(ctx, authService);
+		UUID requester = Sputnik.optionalAuthenticatedUser(ctx);
 		ctx.json(Sputnik.user(userService.getPublicUser(requester, UUID.fromString(ctx.pathParam("id")))));
 	}
 	
 	// body (missing field = keep as is): {display_name, avatar: <asset uuid> | null to remove, presence, status_text}
 	// avatar is an asset uploaded through POST /api/assets
 	public void updateMe(Context ctx) {
-		UUID requester = Sputnik.requireAuth(ctx, authService);
+		UUID requester = Sputnik.authenticatedUser(ctx);
 		JsonNode body = Sputnik.body(ctx);
 		
 		var presence = Sputnik.optText(body, "presence").map(value -> {

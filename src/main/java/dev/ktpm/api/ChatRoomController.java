@@ -51,7 +51,7 @@ public class ChatRoomController {
 
 	// body {name, motd, is_public (default true), invite_code?} -> {room_uuid, invite_code, invite_link}
 	public void createRoom(Context ctx) {
-		UUID owner = Sputnik.requireAuth(ctx, authService);
+		UUID owner = Sputnik.authenticatedUser(ctx);
 		var body = Sputnik.body(ctx);
 		var room = chatRoomService.createRoom(
 			owner, Sputnik.text(body, "name"), Sputnik.text(body, "motd"),
@@ -67,7 +67,7 @@ public class ChatRoomController {
 	
 	// login ko bắt buộc
 	public void listPublicRooms(Context ctx) {
-		UUID requester = Sputnik.optionalAuth(ctx, authService);
+		UUID requester = Sputnik.optionalAuthenticatedUser(ctx);
 		var rooms = chatRoomService.listPublicRooms(requester, Sputnik.limit(ctx)).stream()
 			.map(room -> Sputnik.room(room, chatRoomService.getMemberCount(room.uuid())))
 		.toList();
@@ -76,7 +76,7 @@ public class ChatRoomController {
 	
 	// rooms (private too) that im in
 	public void listMyRooms(Context ctx) {
-		UUID requester = Sputnik.requireAuth(ctx, authService);
+		UUID requester = Sputnik.authenticatedUser(ctx);
 		var rooms = chatRoomService.listJoinedRooms(requester, Sputnik.limit(ctx)).stream()
 			.map(room -> Sputnik.room(room, chatRoomService.getMemberCount(room.uuid())))
 		.toList();
@@ -86,7 +86,7 @@ public class ChatRoomController {
 	// public rooms are open to everyone, private ones need membership
 	public void getOverview(Context ctx) {
 		var overview = chatRoomService.getOverview(
-			Sputnik.optionalAuth(ctx, authService), UUID.fromString(ctx.pathParam("id"))
+				Sputnik.optionalAuthenticatedUser(ctx), UUID.fromString(ctx.pathParam("id"))
 		);
 		ctx.json(overviewJson(overview));
 	}
@@ -97,7 +97,7 @@ public class ChatRoomController {
 	}
 	
 	public void joinRoom(Context ctx) {
-		UUID user = Sputnik.requireAuth(ctx, authService);
+		UUID user = Sputnik.authenticatedUser(ctx);
 		var body = Sputnik.body(ctx);
 		UUID roomUUID = UUID.fromString(ctx.pathParam("id"));
 		chatRoomService.joinRoom(user, roomUUID, Sputnik.optText(body, "room_invite_code"));
@@ -106,7 +106,7 @@ public class ChatRoomController {
 	}
 	
 	public void joinByInvite(Context ctx) {
-		UUID user = Sputnik.requireAuth(ctx, authService);
+		UUID user = Sputnik.authenticatedUser(ctx);
 		ChatRoom room = chatRoomService.joinByInviteCode(user, ctx.pathParam("code"));
 		announceJoin(room.uuid(), user);
 		ctx.json(Sputnik.obj("room_uuid", room.uuid()));
@@ -114,7 +114,7 @@ public class ChatRoomController {
 	
 	// silent_leave: leave quietly, nobody else is told
 	public void leaveRoom(Context ctx) {
-		UUID user = Sputnik.requireAuth(ctx, authService);
+		UUID user = Sputnik.authenticatedUser(ctx);
 		var body = Sputnik.body(ctx);
 		UUID roomUUID = UUID.fromString(ctx.pathParam("id"));
 		boolean silent = body.path("silent_leave").asBoolean(false);
@@ -135,7 +135,7 @@ public class ChatRoomController {
 	}
 
 	public void deleteRoom(Context ctx) {
-		UUID user = Sputnik.requireAuth(ctx, authService);
+		UUID user = Sputnik.authenticatedUser(ctx);
 		UUID roomUUID = UUID.fromString(ctx.pathParam("id"));
 		var members = chatRoomService.deleteRoom(user, roomUUID);
 		dispatcher.sendToUsers(members, RealtimeEventType.ROOM_DELETED, 
@@ -146,7 +146,7 @@ public class ChatRoomController {
 	
 	// body {name?, motd?}, missing field = keep as is
 	public void updateRoom(Context ctx) {
-		UUID user = Sputnik.requireAuth(ctx, authService);
+		UUID user = Sputnik.authenticatedUser(ctx);
 		var body = Sputnik.body(ctx);
 		var room = chatRoomService.updateRoom(
 			user, UUID.fromString(ctx.pathParam("id")), Sputnik.optText(body, "name"), Sputnik.optText(body, "motd")
@@ -166,7 +166,7 @@ public class ChatRoomController {
 	
 	// raw body (+ X-File-Name header) or multipart field "file"
 	public void setAvatar(Context ctx) {
-		UUID user = Sputnik.requireAuth(ctx, authService);
+		UUID user = Sputnik.authenticatedUser(ctx);
 		var file = Sputnik.upload(ctx);
 		var room = chatRoomService.setAvatar(user, UUID.fromString(ctx.pathParam("id")), file.data(), file.originalName());
 		announceRoomUpdate(room);
@@ -174,7 +174,7 @@ public class ChatRoomController {
 	}
 	
 	public void removeAvatar(Context ctx) {
-		UUID user = Sputnik.requireAuth(ctx, authService);
+		UUID user = Sputnik.authenticatedUser(ctx);
 		var room = chatRoomService.removeAvatar(user, UUID.fromString(ctx.pathParam("id")));
 		announceRoomUpdate(room);
 		ctx.json(Sputnik.room(room, chatRoomService.getMemberCount(room.uuid())));
@@ -182,7 +182,7 @@ public class ChatRoomController {
 	
 	// body {invite_code?}: replaces the old code (old one stops working), no code = generate one
 	public void resetInviteCode(Context ctx) {
-		UUID user = Sputnik.requireAuth(ctx, authService);
+		UUID user = Sputnik.authenticatedUser(ctx);
 		var room = chatRoomService.resetInviteCode(
 			user, UUID.fromString(ctx.pathParam("id")), Sputnik.optText(Sputnik.body(ctx), "invite_code")
 		);

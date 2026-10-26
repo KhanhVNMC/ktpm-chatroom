@@ -2,14 +2,7 @@ package dev.ktpm;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-import dev.ktpm.api.AssetController;
-import dev.ktpm.api.AuthController;
-import dev.ktpm.api.ChatMessageController;
-import dev.ktpm.api.ChatRoomController;
-import dev.ktpm.api.EventController;
-import dev.ktpm.api.SSEventDispatcher;
-import dev.ktpm.api.RoomMemberController;
-import dev.ktpm.api.UserController;
+import dev.ktpm.api.*;
 import dev.ktpm.impl.jpa.HibernateRuntime;
 import dev.ktpm.impl.jpa.repos.JPAAttachmentAssetRepository;
 import dev.ktpm.impl.jpa.repos.JPAChatMessageRepository;
@@ -50,24 +43,46 @@ public class App {
 		var memberService = new RoomMemberService(rooms, memberships, users);
 		var messageService = new ChatMessageService(messages, memberships, rooms, assetService);
 		var hub = new SSEventDispatcher(memberships);
-		
+
 		var j = Javalin.create(config -> {
 			config.jsonMapper(new JavalinJackson(new ObjectMapper(), false));
-			config.http.maxRequestSize = 40L * 1024 * 1024; // attachments come in as base64, so ~33% bigger than the file
+			config.http.maxRequestSize = 40L * 1024 * 1024;
 			config.staticFiles.add("/public", Location.CLASSPATH, java.util.Set.of());
+
+			config.routes.before(
+					"/api/*",
+					new AuthenticationMiddleware(authService).handler()
+			);
+
+			config.routes.exception(APIException.class, (exception, ctx) -> {
+				ctx.status(exception.status);
+				ctx.json(Sputnik.obj(
+						"error_message", exception.getMessage()
+				));
+			});
+
 			config.routes.get("/api/health", ctx -> ctx.result("OK"));
+
 			new AuthController(authService, userService, hub).registerRoutes(config.routes);
 			new UserController(userService, authService, hub).registerRoutes(config.routes);
 			new AssetController(assetService, authService).registerRoutes(config.routes);
-			new ChatRoomController(roomService, authService, userService, assetService, hub).registerRoutes(config.routes);
-			new RoomMemberController(memberService, authService, userService, hub).registerRoutes(config.routes);
-			new ChatMessageController(messageService, authService, userService, hub).registerRoutes(config.routes);
+			new ChatRoomController(
+					roomService, authService, userService, assetService, hub
+			).registerRoutes(config.routes);
+			new RoomMemberController(
+					memberService, authService, userService, hub
+			).registerRoutes(config.routes);
+			new ChatMessageController(
+					messageService, authService, userService, hub
+			).registerRoutes(config.routes);
 			new EventController(authService, hub).registerRoutes(config.routes);
 		});
+
 		java.lang.Runtime.getRuntime().addShutdownHook(new Thread(() -> {
 			j.stop();
 			hibernate.close();
 		}, "application-shutdown"));
+
 		j.start(8080);
 	}
 }

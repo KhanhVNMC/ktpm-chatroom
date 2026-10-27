@@ -1,10 +1,47 @@
 # HỆ THỐNG PHÒNG CHAT ONLINE
 
 ## 1. Bài toán
- 
+
+Hệ thống CHATROOM: Hệ thống phòng chat trực tuyến hỗ trợ nhiều người dùng trao đổi thông tin qua tin nhắn hoặc gửi file theo thời gian thực.
+
+
 ## 2. Nghiệp vụ
 
-## 3. Tài liệu API (API Documentation)
+### 2.1. Tài khoản và xác thực
+1. Người dùng có đăng ký, đăng nhập bằng tài khoản & mật khẩu và đăng xuất.
+2. Người dùng có thể xem hồ sơ của mình, cập nhật tên hiển thị, ảnh đại diện.
+
+
+### 2.2. Quản lý phòng chat
+
+1. Người dùng tạo phòng với tên & chế độ truy cập phòng. Phòng private sử dụng mã mời/link.
+2. Người dùng xem thông tin tổng quan, danh sách phòng công khai hoặc danh sách phòng mình đang tham gia.
+4. Người dùng tham gia một phòng mà bị ban, hệ thống sẽ từ chối người dùng đó.
+5. Thành viên có thể rời phòng.
+6. Người có quyền quản lý phòng có thể cập nhật thông tin phòng, đặt hoặc gỡ ảnh đại diện và đổi mã mời.
+7. Chủ phòng có thể xóa phòng hoặc chuyển quyền sở hữu cho thành viên khác.
+
+### 2.3. Tin nhắn và file
+
+1. Thành viên được cấp quyền gửi tin nhắn có thể gửi nội dung văn bản, file.
+2. Người dùng có quyền xem lịch sử tin nhắn theo từng trang và tìm kiếm nội dung trong phòng. Quyền xem phụ thuộc vào chế độ công khai và trạng thái tham gia phòng.
+3. Người gửi có thể chỉnh sửa tin nhắn của mình theo quy tắc phân quyền của phòng.
+4. Người có quyền phù hợp có thể xóa tin nhắn người khác.
+
+### 2.4. Quản lý thành viên và phân quyền
+
+1. Thành viên có các quyền riêng trong phòng, bao gồm gửi, sửa và xóa tin nhắn; quản lý phòng; kick, ban, mute thành viên; và cấp quyền.
+2. Chủ phòng có thể chuyển quyền sở hữu.
+3. Trạng thái muted hạn chế khả năng gửi tin nhắn. Thành viên bị ban không thể tham gia lại cho đến khi được unban.
+4. Danh sách thành viên bao gồm thông tin về quyền, thông tin của thành viên bị ban chỉ hiển thị cho người có quyền quản lý ban.
+
+### 2.5. Cập nhật thời gian thực
+
+1. Người dùng đã xác thực mở kết nối `GET /api/events` với header `Accept: text/event-stream`.
+2. Các sự kiện gồm kết nối, tin nhắn mới, chỉnh sửa hoặc xóa tin nhắn; thành viên tham gia, rời phòng hoặc bị quản trị; thay đổi quyền, chủ phòng, thông tin phòng và hồ sơ người dùng.
+3. Khi người dùng đăng xuất, các luồng SSE thuộc phiên đó được đóng. Theo thiết kế hiện tại, sự kiện phát sinh trong lúc mất kết nối không được phát lại khi kết nối lại.
+
+## 3. API Documentation (In [OpenAPI](src/main/resources/openapi.yaml) )
 
 ### Kiểm tra trạng thái hệ thống
 | Method | Endpoint | Mô tả | Input | Thành công |
@@ -17,9 +54,9 @@
 | `POST` | `/api/auth/register` | Đăng ký tài khoản mới | Username, password, displayname | `201`, thông tin người dùng |
 | `POST` | `/api/auth/login` | Đăng nhập vào hệ thống | Username, password | `200`, trả về session id |
 | `POST` | `/api/auth/logout` | Đăng xuất khỏi hệ thống |   | `200`, `{}` |
-| `GET` | `/api/auth/me` | Lấy thông tin cá nhân của người dùng hiện tại |   | Thông tin user |
+| `GET` `PATCH` | `/api/auth/me` | Lấy/Đổi thông tin cá nhân của người dùng hiện tại |   | Thông tin user |
 | `GET` | `/api/user/{id}` | Lấy thông tin của một người dùng bất kỳ |   | `200`, thông tin người dùng |
-| `PATCH` | `/api/user/me` | Cập nhật thông tin cá nhân | Tên hiển thị, ảnh đại diện, trạng thái hoạt động, dòng trạng thái | `200`, thông tin người dùng |
+
 
 ### Tệp tải lên (Assets)
 | Method | Endpoint | Mô tả | Input | Phản hồi thành công |
@@ -36,12 +73,9 @@
 | `GET` | `/api/chatrooms/{id}/overview` | Thông tin tổng quan của phòng chat |   | `200`, thông tin tổng quan |
 | `PATCH` | `/api/chatrooms/{id}` | Đổi tên, lời chào của phòng chat | Tên mới, lời chào mới | `200`, thông tin phòng |
 | `DELETE` | `/api/chatrooms/{id}` | Xóa phòng chat |   | `200`, `{}` |
-| `GET` | `/api/chatrooms/{id}/avatar` | Lấy ảnh đại diện của phòng chat |   | `200`, ảnh đại diện |
-| `PUT` | `/api/chatrooms/{id}/avatar` | Đặt ảnh đại diện của phòng chat | Nội dung ảnh, tên tệp | `200`, thông tin phòng |
-| `DELETE` | `/api/chatrooms/{id}/avatar` | Gỡ ảnh đại diện của phòng chat |   | `200`, thông tin phòng |
+| `GET` `PUT` `DELETE`| `/api/chatrooms/{id}/avatar` | Lấy/Đổi/Xóa ảnh đại diện của phòng chat |   | `200`, ảnh đại diện |
 | `POST` | `/api/chatrooms/{id}/invite-code` | Đổi mã mời của phòng chat | Mã mời mới | `200`, mã mời và link mời |
 | `GET` | `/api/chatrooms/invite/{code}` | Xem trước phòng chat bằng mã mời |   | `200`, thông tin tổng quan |
-| `POST` | `/api/chatrooms/invite/{code}/join` | Tham gia phòng chat bằng mã mời |   | `200`, ID phòng |
 | `POST` | `/api/chatrooms/{id}/join` | Tham gia vào phòng chat | Mã mời phòng | `200`, `{}` |
 | `POST` | `/api/chatrooms/{id}/leave` | Rời khỏi phòng chat | Rời ẩn danh, lý do | `200`, `{}` |
 
@@ -69,18 +103,17 @@ Permission bits:
 ### Hệ thống Tin nhắn (Messages)
 | Method | Endpoint | Mô tả | Input | Phản hồi thành công |
 | :--- | :--- | :--- | :--- | :--- |
-| `GET` | `/api/chatrooms/{id}/history?limit={n}&before_message={uuid}` | Tải lịch sử tin nhắn của phòng chat |   | `200`, danh sách tin nhắn |
-| `GET` | `/api/chatrooms/{id}/search?q={text}&limit={n}&before_message={uuid}` | Tìm kiếm tin nhắn trong phòng chat |   | `200`, danh sách tin nhắn |
+| `GET` | `/api/chatrooms/{id}/history` | Tải lịch sử tin nhắn của phòng chat |   | `200`, danh sách tin nhắn |
+| `GET` | `/api/chatrooms/{id}/search?q={text}` | Tìm kiếm tin nhắn trong phòng chat |   | `200`, danh sách tin nhắn |
 | `POST` | `/api/chatrooms/{id}/messages` | Gửi tin nhắn mới vào phòng chat | Nội dung tin nhắn, danh sách file tải lên | `201`, tin nhắn vừa gửi |
-| `PATCH`| `/api/chatrooms/{id}/messages/{messageId}`| Chỉnh sửa nội dung tin nhắn đã gửi | Nội dung mới, giữ hay bỏ file đính kèm | `200`, tin nhắn sau khi sửa |
-| `DELETE`| `/api/chatrooms/{id}/messages/{messageId}`| Xóa một tin nhắn |   | `200`, `{}` |
+| `PATCH` `DELETE`| `/api/chatrooms/{id}/messages/{messageId}`| Chỉnh sửa/Xóa nội dung tin nhắn đã gửi | Nội dung mới, giữ hay bỏ file đính kèm | `200`, tin nhắn sau khi sửa |
+
 
 ### Sự kiện thời gian thực (Server-Sent Events)
 | Method | Endpoint | Mô tả | Input | Phản hồi thành công |
 | :--- | :--- | :--- | :--- | :--- |
 | `GET` | `/api/events` | Nhận sự kiện của các phòng chat đang tham gia | Header `Accept: text/event-stream` | `200`, luồng `text/event-stream` |
 
-Mỗi data segment có dạng `{"type": <loại sự kiện>, "payload": "<chuỗi JSON>"}`.
 
 | Loại sự kiện | Mô tả |
 | :--- | :--- |
@@ -115,7 +148,7 @@ Mỗi data segment có dạng `{"type": <loại sự kiện>, "payload": "<chu�
 | Database | PostgreSQL | Persistent users, credentials, sessions, rooms, memberships, messages, and asset metadata |
 | Logging | SLF4J Simple | Application logging |
 | Frontend | HTML, CSS, JavaScript  | Static browser-based chat client |
-| Testing | JUnit Jupiter | Java tests |
+| Deployment | Docker |  Package & Deploy |
 
 ## 5. Project Structure
 
@@ -145,3 +178,6 @@ ktpm-chatroom/
 │           └── openapi.yaml       OpenAPI API specification
 ├── plan.adml                      Project plan
 └── README.md                      Project overview and API documentation
+```
+
+## 6. How to run

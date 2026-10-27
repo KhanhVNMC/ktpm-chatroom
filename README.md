@@ -100,3 +100,48 @@ Mỗi data segment có dạng `{"type": <loại sự kiện>, "payload": "<chu�
 | `ROOM_UPDATED` | Thông tin phòng thay đổi |
 | `ROOM_DELETED` | Phòng chat bị xóa |
 | `USER_UPDATED` | Thông tin người dùng thay đổi |
+
+
+
+## 4. Technology Used
+
+| Layer | Technology | Purpose |
+|---|---|---|
+| Runtime | Java | Application runtime and language level |
+| Web | Javalin | HTTP API, routing, and static client serving |
+| Serialization | Jackson Databind | JSON request and response handling |
+| Authentication | jBCrypt | Password hashing and verification |
+| ORM | Hibernate ORM | JPA-based persistence |
+| Database | PostgreSQL | Persistent users, credentials, sessions, rooms, memberships, messages, and asset metadata |
+| Logging | SLF4J Simple | Application logging |
+| Frontend | HTML, CSS, JavaScript  | Static browser-based chat client |
+| Testing | JUnit Jupiter | Java tests |
+
+## 5. Project Structure
+
+```text
+ktpm-chatroom/
+
+
+├── src/
+│   └── main/
+│       ├── java/
+│       │   └── dev/ktpm/
+│       │       ├── api/           HTTP controllers, auth middleware, SSE
+│       │       │   └── dto/       API request and response data types
+│       │       ├── consts/        Enums and permission constants
+│       │       ├── impl/          Implementation for interfaces
+│       │       │   ├── jpa/
+│       │       │   │   ├── entities/     JPA persistence entities
+│       │       │   │   └── repos/        JPA repository implementations
+│       │       │   └── service/       Business logic implementations
+│       │       ├── model/         Domain models
+│       │       ├── repository/    Repository interfaces
+│       │       ├── service/       Service interfaces
+│       │       └── App.java       Application startup and dependency wiring
+│       └── resources/
+│           ├── public/            Browser client: HTML, CSS, JavaScript
+│           ├── hibernate.cfg.xml  Hibernate and database configuration
+│           └── openapi.yaml       OpenAPI API specification
+├── plan.adml                      Project plan
+└── README.md                      Project overview and API documentation

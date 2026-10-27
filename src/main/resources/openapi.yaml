@@ -243,19 +243,19 @@ paths:
         Each data segment is `{"type": <event type>, "payload": "<JSON string>"}`. The payload is a string and has to be parsed again.
         Events missed during a disconnect are not replayed.
 
-        | type | payload |
+        | type | payload fields after parsing the JSON string |
         | :--- | :--- |
-        | `CONNECTED` | `ConnectedPayload` |
-        | `MESSAGE_CREATED`, `MESSAGE_EDITED` | `ChatMessage` |
-        | `MESSAGE_DELETED` | `MessageDeletedPayload` |
-        | `MEMBER_JOINED` | `MemberJoinedPayload` |
-        | `MEMBER_LEFT` | `MemberLeftPayload` |
-        | `MEMBER_KICKED`, `MEMBER_BANNED`, `MEMBER_UNBANNED`, `MEMBER_MUTED`, `MEMBER_UNMUTED` | `MemberModeratedPayload` |
-        | `MEMBER_PERMISSIONS_CHANGED` | `PermissionsChangedPayload` |
-        | `OWNER_TRANSFERRED` | `OwnerTransferredPayload` |
-        | `ROOM_UPDATED` | `RoomSummary` |
-        | `ROOM_DELETED` | `RoomDeletedPayload` |
-        | `USER_UPDATED` | `User` |
+        | `CONNECTED` | `user_uuid` |
+        | `MESSAGE_CREATED`, `MESSAGE_EDITED` | `ChatMessage` fields |
+        | `MESSAGE_DELETED` | `room_uuid`, `message_uuid`, `deleted_by` |
+        | `MEMBER_JOINED` | `room_uuid`, `user` (`User`) |
+        | `MEMBER_LEFT` | `room_uuid`, `user` (`User`), `reason` |
+        | `MEMBER_KICKED`, `MEMBER_BANNED`, `MEMBER_UNBANNED`, `MEMBER_MUTED`, `MEMBER_UNMUTED` | `room_uuid`, `user_uuid`, `actor_uuid`, `reason` |
+        | `MEMBER_PERMISSIONS_CHANGED` | `room_uuid`, `user_uuid`, `actor_uuid`, `permission_bits` |
+        | `OWNER_TRANSFERRED` | `room_uuid`, `old_owner`, `new_owner` |
+        | `ROOM_UPDATED` | `RoomSummary` fields |
+        | `ROOM_DELETED` | `room_uuid` |
+        | `USER_UPDATED` | `User` fields |
       security:
         - BearerAuth: []
         - SessionQuery: []
@@ -1392,91 +1392,6 @@ components:
         payload:
           type: string
       required: [type, payload]
-    ConnectedPayload:
-      type: object
-      properties:
-        user_uuid:
-          type: string
-          format: uuid
-    MessageDeletedPayload:
-      type: object
-      properties:
-        room_uuid:
-          type: string
-          format: uuid
-        message_uuid:
-          type: string
-          format: uuid
-        deleted_by:
-          type: string
-          format: uuid
-    MemberJoinedPayload:
-      type: object
-      properties:
-        room_uuid:
-          type: string
-          format: uuid
-        user:
-          $ref: "#/components/schemas/User"
-    MemberLeftPayload:
-      type: object
-      properties:
-        room_uuid:
-          type: string
-          format: uuid
-        user:
-          $ref: "#/components/schemas/User"
-        reason:
-          type: string
-          nullable: true
-    MemberModeratedPayload:
-      type: object
-      properties:
-        room_uuid:
-          type: string
-          format: uuid
-        user_uuid:
-          type: string
-          format: uuid
-        actor_uuid:
-          type: string
-          format: uuid
-        reason:
-          type: string
-          nullable: true
-    PermissionsChangedPayload:
-      type: object
-      properties:
-        room_uuid:
-          type: string
-          format: uuid
-        user_uuid:
-          type: string
-          format: uuid
-        actor_uuid:
-          type: string
-          format: uuid
-        permission_bits:
-          type: integer
-    OwnerTransferredPayload:
-      type: object
-      properties:
-        room_uuid:
-          type: string
-          format: uuid
-        old_owner:
-          type: string
-          format: uuid
-        new_owner:
-          type: string
-          format: uuid
-    RoomDeletedPayload:
-      type: object
-      properties:
-        room_uuid:
-          type: string
-          format: uuid
-
   responses:
     EmptyObject:
       description: Operation completed

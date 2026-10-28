@@ -46,7 +46,9 @@ public class AssetService implements IAssetService {
 		Path file = userContentDir.resolve(id + "." + extension(originalName));
 		write(file, data);
 		try {
-			return assetRepo.create(new AttachmentAsset(id, file, safeName(originalName)));
+			return assetRepo.create(
+					new AttachmentAsset(id, file, safeName(originalName), data.length)
+			);
 		} catch (RuntimeException e) {
 			deleteFile(file); // db failed, dont leave an orphan file
 			throw e;

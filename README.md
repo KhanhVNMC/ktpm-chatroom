@@ -8,6 +8,7 @@ Hệ thống CHATROOM: Hệ thống phòng chat trực tuyến hỗ trợ nhiề
 ## 2. Nghiệp vụ
 
 ### 2.1. Tài khoản và xác thực
+
 1. Người dùng có đăng ký, đăng nhập bằng tài khoản & mật khẩu và đăng xuất.
 2. Người dùng có thể xem hồ sơ của mình, cập nhật tên hiển thị, ảnh đại diện.
 
@@ -21,19 +22,21 @@ Hệ thống CHATROOM: Hệ thống phòng chat trực tuyến hỗ trợ nhiề
 6. Người có quyền quản lý phòng có thể cập nhật thông tin phòng, đặt hoặc gỡ ảnh đại diện và đổi mã mời.
 7. Chủ phòng có thể xóa phòng hoặc chuyển quyền sở hữu cho thành viên khác.
 
-### 2.3. Tin nhắn và file
+
+### 2.3. Quản lý thành viên và phân quyền
+
+1. Thành viên có các quyền riêng trong phòng, bao gồm gửi, sửa và xóa tin nhắn; quản lý phòng; kick, ban, mute thành viên; và cấp quyền.
+2. Chủ phòng có thể chuyển quyền sở hữu.
+3. Trạng thái muted hạn chế khả năng gửi tin nhắn. Thành viên bị ban không thể tham gia lại cho đến khi được unban.
+4. Danh sách thành viên bao gồm thông tin về quyền, thông tin của thành viên bị ban chỉ hiển thị cho người có quyền quản lý ban.
+
+### 2.4. Tin nhắn và file
 
 1. Thành viên được cấp quyền gửi tin nhắn có thể gửi nội dung văn bản, file.
 2. Người dùng có quyền xem lịch sử tin nhắn theo từng trang và tìm kiếm nội dung trong phòng. Quyền xem phụ thuộc vào chế độ công khai và trạng thái tham gia phòng.
 3. Người gửi có thể chỉnh sửa tin nhắn của mình theo quy tắc phân quyền của phòng.
 4. Người có quyền phù hợp có thể xóa tin nhắn người khác.
 
-### 2.4. Quản lý thành viên và phân quyền
-
-1. Thành viên có các quyền riêng trong phòng, bao gồm gửi, sửa và xóa tin nhắn; quản lý phòng; kick, ban, mute thành viên; và cấp quyền.
-2. Chủ phòng có thể chuyển quyền sở hữu.
-3. Trạng thái muted hạn chế khả năng gửi tin nhắn. Thành viên bị ban không thể tham gia lại cho đến khi được unban.
-4. Danh sách thành viên bao gồm thông tin về quyền, thông tin của thành viên bị ban chỉ hiển thị cho người có quyền quản lý ban.
 
 ### 2.5. Cập nhật thời gian thực
 
@@ -42,6 +45,12 @@ Hệ thống CHATROOM: Hệ thống phòng chat trực tuyến hỗ trợ nhiề
 3. Khi người dùng đăng xuất, các luồng SSE thuộc phiên đó được đóng. Theo thiết kế hiện tại, sự kiện phát sinh trong lúc mất kết nối không được phát lại khi kết nối lại.
 
 ## 3. API Documentation (In [OpenAPI](src/main/resources/openapi.yaml) )
+
+### Tệp tải lên (Assets)
+| Method | Endpoint | Mô tả | Input | Phản hồi thành công |
+| :--- | :--- | :--- | :--- | :--- |
+| `POST` | `/api/assets` | Tải một tệp lên server | Nội dung tệp, tên tệp | `201`, id và đường dẫn của tệp |
+| `GET` | `/api/assets/{id}` | Tải tệp đã tải lên |   | `200`, nội dung tệp |
 
 ### Kiểm tra trạng thái hệ thống
 | Method | Endpoint | Mô tả | Input | Thành công |
@@ -58,11 +67,13 @@ Hệ thống CHATROOM: Hệ thống phòng chat trực tuyến hỗ trợ nhiề
 | `GET` | `/api/user/{id}` | Lấy thông tin của một người dùng bất kỳ |   | `200`, thông tin người dùng |
 
 
-### Tệp tải lên (Assets)
+### Quản lý Thành viên (Room members)
 | Method | Endpoint | Mô tả | Input | Phản hồi thành công |
 | :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/api/assets` | Tải một tệp lên server | Nội dung tệp, tên tệp | `201`, id và đường dẫn của tệp |
-| `GET` | `/api/assets/{id}` | Tải tệp đã tải lên |   | `200`, nội dung tệp |
+| `GET` | `/api/chatrooms/{id}/members` | Lấy danh sách thành viên của phòng chat |   | `200`, danh sách thành viên |
+| `POST` | `/api/chatrooms/{id}/members/{userId}/{action}` | Kick, ban, unban, mute hoặc unmute một thành viên | Lý do | `200`, `{}` |
+| `PUT` | `/api/chatrooms/{id}/members/{userId}/permissions` | Đặt quyền cho một thành viên | Permission bits | `200`, `{}` |
+| `POST` | `/api/chatrooms/{id}/transfer-ownership` | Chuyển quyền chủ phòng | ID chủ phòng mới | `200`, `{}` |
 
 ### Quản lý Phòng chat (Chatrooms)
 | Method | Endpoint | Mô tả | Input | Phản hồi thành công |
@@ -79,13 +90,13 @@ Hệ thống CHATROOM: Hệ thống phòng chat trực tuyến hỗ trợ nhiề
 | `POST` | `/api/chatrooms/{id}/join` | Tham gia vào phòng chat | Mã mời phòng | `200`, `{}` |
 | `POST` | `/api/chatrooms/{id}/leave` | Rời khỏi phòng chat | Rời ẩn danh, lý do | `200`, `{}` |
 
-### Quản lý Thành viên (Room members)
+### Hệ thống Tin nhắn (Messages)
 | Method | Endpoint | Mô tả | Input | Phản hồi thành công |
 | :--- | :--- | :--- | :--- | :--- |
-| `GET` | `/api/chatrooms/{id}/members` | Lấy danh sách thành viên của phòng chat |   | `200`, danh sách thành viên |
-| `POST` | `/api/chatrooms/{id}/members/{userId}/{action}` | Kick, ban, unban, mute hoặc unmute một thành viên | Lý do | `200`, `{}` |
-| `PUT` | `/api/chatrooms/{id}/members/{userId}/permissions` | Đặt quyền cho một thành viên | Permission bits | `200`, `{}` |
-| `POST` | `/api/chatrooms/{id}/transfer-ownership` | Chuyển quyền chủ phòng | ID chủ phòng mới | `200`, `{}` |
+| `GET` | `/api/chatrooms/{id}/history` | Tải lịch sử tin nhắn của phòng chat |   | `200`, danh sách tin nhắn |
+| `GET` | `/api/chatrooms/{id}/search?q={text}` | Tìm kiếm tin nhắn trong phòng chat |   | `200`, danh sách tin nhắn |
+| `POST` | `/api/chatrooms/{id}/messages` | Gửi tin nhắn mới vào phòng chat | Nội dung tin nhắn, danh sách file tải lên | `201`, tin nhắn vừa gửi |
+| `PATCH` `DELETE`| `/api/chatrooms/{id}/messages/{messageId}`| Chỉnh sửa/Xóa nội dung tin nhắn đã gửi | Nội dung mới, giữ hay bỏ file đính kèm | `200`, tin nhắn sau khi sửa |
 
 Permission bits:
 
@@ -100,20 +111,10 @@ Permission bits:
 | `64` | `MUTE_MEMBERS` |
 | `128` | `GRANT_PERMISSIONS` |
 
-### Hệ thống Tin nhắn (Messages)
-| Method | Endpoint | Mô tả | Input | Phản hồi thành công |
-| :--- | :--- | :--- | :--- | :--- |
-| `GET` | `/api/chatrooms/{id}/history` | Tải lịch sử tin nhắn của phòng chat |   | `200`, danh sách tin nhắn |
-| `GET` | `/api/chatrooms/{id}/search?q={text}` | Tìm kiếm tin nhắn trong phòng chat |   | `200`, danh sách tin nhắn |
-| `POST` | `/api/chatrooms/{id}/messages` | Gửi tin nhắn mới vào phòng chat | Nội dung tin nhắn, danh sách file tải lên | `201`, tin nhắn vừa gửi |
-| `PATCH` `DELETE`| `/api/chatrooms/{id}/messages/{messageId}`| Chỉnh sửa/Xóa nội dung tin nhắn đã gửi | Nội dung mới, giữ hay bỏ file đính kèm | `200`, tin nhắn sau khi sửa |
-
-
 ### Sự kiện thời gian thực (Server-Sent Events)
 | Method | Endpoint | Mô tả | Input | Phản hồi thành công |
 | :--- | :--- | :--- | :--- | :--- |
 | `GET` | `/api/events` | Nhận sự kiện của các phòng chat đang tham gia | Header `Accept: text/event-stream` | `200`, luồng `text/event-stream` |
-
 
 | Loại sự kiện | Mô tả |
 | :--- | :--- |
@@ -135,22 +136,7 @@ Permission bits:
 | `USER_UPDATED` | Thông tin người dùng thay đổi |
 
 
-
-## 4. Technology Used
-
-| Layer | Technology | Purpose |
-|---|---|---|
-| Runtime | Java | Application runtime and language level |
-| Web | Javalin | HTTP API, routing, and static client serving |
-| Serialization | Jackson Databind | JSON request and response handling |
-| Authentication | jBCrypt | Password hashing and verification |
-| ORM | Hibernate ORM | JPA-based persistence |
-| Database | PostgreSQL | Persistent users, credentials, sessions, rooms, memberships, messages, and asset metadata |
-| Logging | SLF4J Simple | Application logging |
-| Frontend | HTML, CSS, JavaScript  | Static browser-based chat client |
-| Deployment | Docker |  Package & Deploy |
-
-## 5. Project Structure
+## 4. Project Structure
 
 ```text
 ktpm-chatroom/
@@ -179,5 +165,18 @@ ktpm-chatroom/
 ├── plan.adml                      Project plan
 └── README.md                      Project overview and API documentation
 ```
+## 4. Technology Used
 
+| Layer | Technology | Purpose |
+|---|---|---|
+| Runtime | Java | Application runtime and language level |
+| Web | Javalin | HTTP API, routing, and static client serving |
+| Serialization | Jackson Databind | JSON request and response handling |
+| Authentication | jBCrypt | Password hashing and verification |
+| ORM | Hibernate ORM | JPA-based persistence |
+| Database | PostgreSQL | Persistent users, credentials, sessions, rooms, memberships, messages, and asset metadata |
+| Logging | SLF4J Simple | Application logging |
+| Frontend | HTML, CSS, JavaScript  | Static browser-based chat client |
+| Deployment | Docker |  Package & Deploy |
+|       |            |         |
 ## 6. How to run

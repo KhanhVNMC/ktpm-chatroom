@@ -26,16 +26,20 @@ public class AttachmentAssetEntity {
 	
 	@Column(name = "original_name")
 	private String originalName;
-	
+
+	@Column(name = "size", nullable = false)
+	private long size;
+
 	public static AttachmentAssetEntity fromModel(AttachmentAsset model) {
 		var entity = new AttachmentAssetEntity();
 		entity.id = model.id();
 		entity.path = model.path().toString();
 		entity.originalName = model.originalName();
+		entity.size = model.size();
 		return entity;
 	}
-	
+
 	public AttachmentAsset toModel() {
-		return new AttachmentAsset(id, Path.of(path), originalName);
+		return new AttachmentAsset(id, Path.of(path), originalName, size);
 	}
 }

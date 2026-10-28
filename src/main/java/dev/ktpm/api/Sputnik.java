@@ -63,7 +63,7 @@ public final class Sputnik {
 		return ctx.attribute(AuthenticationMiddleware.AUTHENTICATED_USER);
 	}
 
-	/** null nếu ko gửi token, 401 nếu token sai/hết hạn */
+	// no token = null, bad/expired token = 401
 	public static UUID optionalAuth(Context ctx, IAuthenticationService authService) {
 		String token = token(ctx);
 		if (token == null) {

@@ -38,7 +38,7 @@ public class AuthController {
 		ctx.json(Sputnik.user(user));
 	}
 	
-	// body {username, password} -> {session_id}, các request sau gửi "Authorization: Bearer <session_id>"
+	// [username, password] -> session id, send it as "Authorization: Bearer <id>" after
 	public void login(Context ctx) {
 		var body = Sputnik.body(ctx);
 		String sessionID = authService.login(Sputnik.require(body, "username"), Sputnik.require(body, "password"));

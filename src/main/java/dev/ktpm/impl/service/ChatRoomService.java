@@ -87,7 +87,7 @@ public class ChatRoomService implements IChatRoomService {
 			UUID.randomUUID(), owner, roomName, roomMotd, null, System.currentTimeMillis(), isPublic, code
 		));
 
-		// owner có full quyền
+		// owner gets all perms
 		roomMembershipRepo.create(new RoomMembership(
 			room.uuid(), owner, room.createdAt(), RoomPermissions.ALL, 0, true
 		));
@@ -97,7 +97,7 @@ public class ChatRoomService implements IChatRoomService {
 	@Override
 	public void joinRoom(UUID userUUID, UUID roomUUID, Optional<String> inviteCode) {
 		ChatRoom room = getRoom(roomUUID);
-		// phòng private: phải có invite code đúng
+		// private room, needs the right invite code
 		if (!room.isPublic() && (room.inviteCode() == null || !room.inviteCode().equals(inviteCode.orElse(null)))) {
 			throw new IllegalStateException("This is a private room, you need a valid invite code to join");
 		}

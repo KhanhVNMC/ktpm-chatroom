@@ -42,7 +42,7 @@ public class ChatMessageController {
 		router.delete("/api/chatrooms/{id}/messages/{messageId}", Sputnik.handle(this::deleteMessage));
 	}
 
-	// login ko bắt buộc (phòng public ai cũng xem được)
+	// no login needed (public rooms)
 	public void getHistory(Context ctx) {
 		UUID requester = Sputnik.optionalAuthenticatedUser(ctx);
 		var messages = new ArrayList<>(messageService.getHistory(
@@ -52,7 +52,7 @@ public class ChatMessageController {
 		ctx.json(Sputnik.obj("messages", toJson(messages)));
 	}
 
-	// ko bắt buộc login, nhưng nếu có thì sẽ gửi event đến các peer trong phòng
+	// login optional, if logged in we fire the event to room peers
 	public static UUID optionalAuthenticatedUser(Context ctx) {
 		return ctx.attribute(AuthenticationMiddleware.AUTHENTICATED_USER);
 	}
@@ -117,7 +117,7 @@ public class ChatMessageController {
 		return Optional.ofNullable(ctx.queryParam("before_message")).map(UUID::fromString);
 	}
 
-	// repo trả newest -> oldest, ADML muốn old -> new
+	// repo gives newest -> oldest, ADML wants old -> new
 	private List<java.util.Map<String, Object>> toJson(List<dev.ktpm.model.ChatMessage> messages) {
 		Collections.reverse(messages);
 		var names = new HashMap<UUID, String>();

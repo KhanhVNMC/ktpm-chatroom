@@ -65,7 +65,7 @@ public class ChatRoomController {
 		));
 	}
 	
-	// login ko bắt buộc
+	// no login needed
 	public void listPublicRooms(Context ctx) {
 		UUID requester = Sputnik.optionalAuthenticatedUser(ctx);
 		var rooms = chatRoomService.listPublicRooms(requester, Sputnik.limit(ctx)).stream()

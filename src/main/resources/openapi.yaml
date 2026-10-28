@@ -33,12 +33,14 @@ paths:
               schema:
                 type: string
                 example: OK
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /api/auth/register:
     post:
       tags: [Authentication]
       summary: Register a user account
-      description: The username is stored in lowercase.
+      description: Register a new user. The username is stored in lowercase. `display_name` defaults to `username` if omitted.
       requestBody:
         required: true
         content:
@@ -58,6 +60,8 @@ paths:
                 $ref: "#/components/schemas/User"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
 
   /api/auth/login:
     post:
@@ -124,7 +128,7 @@ paths:
       security:
         - BearerAuth: []
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
@@ -218,6 +222,9 @@ paths:
       tags: [Assets]
       summary: Download a file
       description: Authentication is not required.
+      security:
+        - BearerAuth: []
+        - {}
       parameters:
         - $ref: "#/components/parameters/AssetId"
       responses:
@@ -230,6 +237,8 @@ paths:
                 format: binary
         "400":
           $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -305,6 +314,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /api/chatrooms/listing:
     get:
@@ -327,6 +338,8 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /api/chatrooms/mine:
     get:
@@ -348,12 +361,17 @@ paths:
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /api/chatrooms/invite/{code}:
     get:
       tags: [Chat rooms]
       summary: Preview a room from an invite code or link
-      description: Authentication is not required. The member list and invite code are not included.
+      description: Authentication is optional. The member list and invite code are not included.
+      security:
+        - BearerAuth: []
+        - {}
       parameters:
         - $ref: "#/components/parameters/InviteCode"
       responses:
@@ -363,6 +381,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RoomOverview"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -400,7 +422,7 @@ paths:
       parameters:
         - $ref: "#/components/parameters/RoomId"
       requestBody:
-        required: true
+        required: false
         content:
           application/json:
             schema:
@@ -426,7 +448,7 @@ paths:
     delete:
       tags: [Chat rooms]
       summary: Delete a room
-      description: Only the room owner can delete a room.
+      description: Only the room owner can delete a room. Cascade deletes all messages, attachments, and memberships. Dispatches `ROOM_DELETED` event.
       security:
         - BearerAuth: []
       parameters:
@@ -474,6 +496,9 @@ paths:
       tags: [Chat rooms]
       summary: Get the avatar of a room
       description: Authentication is not required, so the URL can be used directly in `<img>`.
+      security:
+        - BearerAuth: []
+        - {}
       parameters:
         - $ref: "#/components/parameters/RoomId"
       responses:
@@ -486,6 +511,8 @@ paths:
                 format: binary
         "400":
           $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
     put:
@@ -685,7 +712,7 @@ paths:
         | `ban`, `unban` | `BAN_MEMBERS` |
         | `mute`, `unmute` | `MUTE_MEMBERS` |
 
-        The room owner cannot be targeted. Only the owner can target an admin.
+        The room owner cannot be targeted. Only the owner can target an admin. Users cannot target themselves.
       security:
         - BearerAuth: []
       parameters:
@@ -722,7 +749,7 @@ paths:
       tags: [Room members]
       summary: Set the permissions of a member
       description: |
-        Requires the `GRANT_PERMISSIONS` permission. Only the owner can grant `GRANT_PERMISSIONS`.
+        Requires the `GRANT_PERMISSIONS` permission. Only the room owner can grant `GRANT_PERMISSIONS`. Admins cannot grant permissions they do not have, and users cannot modify their own permissions.
 
         | Bit | Value | Permission |
         | :--- | :--- | :--- |
@@ -763,7 +790,7 @@ paths:
     post:
       tags: [Room members]
       summary: Transfer the ownership of a room
-      description: Only the owner can transfer ownership. The new owner must be in the room.
+      description: Only the room owner can transfer ownership. The new owner must be another member in the room.
       security:
         - BearerAuth: []
       parameters:
@@ -866,7 +893,7 @@ paths:
     post:
       tags: [Messages]
       summary: Send a message to a chat room
-      description: Uploaded file contents are accepted as Base64 and stored on the server.
+      description: Requires the `SEND_MESSAGES` permission and not being muted. Uploaded file contents are accepted as Base64.
       security:
         - BearerAuth: []
       parameters:
@@ -899,7 +926,7 @@ paths:
     patch:
       tags: [Messages]
       summary: Edit a message
-      description: Only the author can edit a message.
+      description: Requires being the message author, having the `EDIT_MESSAGES` permission, and not being muted.
       security:
         - BearerAuth: []
       parameters:
@@ -1051,12 +1078,17 @@ components:
       properties:
         username:
           type: string
+          pattern: "^[A-Za-z0-9_.]{3,32}$"
         password:
           type: string
           format: password
+          minLength: 6
+          maxLength: 72
         display_name:
           type: string
           description: Defaults to username when omitted.
+          minLength: 1
+          maxLength: 64
       required: [username, password]
     LoginRequest:
       type: object
@@ -1138,13 +1170,17 @@ components:
       properties:
         name:
           type: string
+          minLength: 1
+          maxLength: 64
         motd:
           type: string
+          maxLength: 512
     ResetInviteCodeRequest:
       type: object
       properties:
         invite_code:
           type: string
+          pattern: "^[A-Za-z0-9_-]{4,32}$"
     InviteCode:
       type: object
       properties:
@@ -1300,7 +1336,7 @@ components:
       required: [new_owner]
     UploadedFile:
       type: object
-      description: Base64 file data, stored on the server as `usercontent/<asset uuid>.<extension>`.
+      description: Base64-encoded file attachment.
       properties:
         attachment:
           type: string

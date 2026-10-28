@@ -38,7 +38,7 @@ paths:
     post:
       tags: [Authentication]
       summary: Register a user account
-      description: The username is stored in lowercase.
+      description: Register a new user. The username is stored in lowercase. `display_name` defaults to `username` if omitted.
       requestBody:
         required: true
         content:
@@ -353,7 +353,10 @@ paths:
     get:
       tags: [Chat rooms]
       summary: Preview a room from an invite code or link
-      description: Authentication is not required. The member list and invite code are not included.
+      description: Authentication is optional. The member list and invite code are not included.
+      security:
+        - BearerAuth: []
+        - {}
       parameters:
         - $ref: "#/components/parameters/InviteCode"
       responses:
@@ -363,6 +366,10 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RoomOverview"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
 
@@ -426,7 +433,7 @@ paths:
     delete:
       tags: [Chat rooms]
       summary: Delete a room
-      description: Only the room owner can delete a room.
+      description: Only the room owner can delete a room. Cascade deletes all messages, attachments, and memberships. Dispatches `ROOM_DELETED` event.
       security:
         - BearerAuth: []
       parameters:
@@ -685,7 +692,7 @@ paths:
         | `ban`, `unban` | `BAN_MEMBERS` |
         | `mute`, `unmute` | `MUTE_MEMBERS` |
 
-        The room owner cannot be targeted. Only the owner can target an admin.
+        The room owner cannot be targeted. Only the owner can target an admin. Users cannot target themselves.
       security:
         - BearerAuth: []
       parameters:
@@ -722,7 +729,7 @@ paths:
       tags: [Room members]
       summary: Set the permissions of a member
       description: |
-        Requires the `GRANT_PERMISSIONS` permission. Only the owner can grant `GRANT_PERMISSIONS`.
+        Requires the `GRANT_PERMISSIONS` permission. Only the room owner can grant `GRANT_PERMISSIONS`. Admins cannot grant permissions they do not have, and users cannot modify their own permissions.
 
         | Bit | Value | Permission |
         | :--- | :--- | :--- |
@@ -763,7 +770,7 @@ paths:
     post:
       tags: [Room members]
       summary: Transfer the ownership of a room
-      description: Only the owner can transfer ownership. The new owner must be in the room.
+      description: Only the room owner can transfer ownership. The new owner must be another member in the room.
       security:
         - BearerAuth: []
       parameters:
@@ -866,7 +873,7 @@ paths:
     post:
       tags: [Messages]
       summary: Send a message to a chat room
-      description: Uploaded file contents are accepted as Base64 and stored on the server.
+      description: Requires the `SEND_MESSAGES` permission and not being muted. Uploaded file contents are accepted as Base64.
       security:
         - BearerAuth: []
       parameters:
@@ -899,7 +906,7 @@ paths:
     patch:
       tags: [Messages]
       summary: Edit a message
-      description: Only the author can edit a message.
+      description: Requires being the message author, having the `EDIT_MESSAGES` permission, and not being muted.
       security:
         - BearerAuth: []
       parameters:
@@ -1300,7 +1307,7 @@ components:
       required: [new_owner]
     UploadedFile:
       type: object
-      description: Base64 file data, stored on the server as `usercontent/<asset uuid>.<extension>`.
+      description: Base64-encoded file attachment.
       properties:
         attachment:
           type: string

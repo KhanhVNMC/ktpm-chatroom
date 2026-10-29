@@ -183,62 +183,12 @@ ktpm-chatroom/
 | Frontend | HTML, CSS, JavaScript  | Static browser-based chat client |
 | Deployment | Docker |  Package & Deploy |
 |       |            |         |
-## 6. How to run
 
-### Cách 1: Chạy bằng Docker
 
-Yêu cầu máy cài Docker là được, không cần Java hay PostgreSQL.
+## 6. Vấn đề có thể cải tiến
 
-```bash
-git clone https://github.com/KhanhVNMC/ktpm-chatroom.git
-cd ktpm-chatroom
-docker compose up -d --build
-```
-
-Sau khi các container khởi động xong, mở trình duyệt và truy cập vào http://localhost:8080.
-
-Khi không dùng nữa, để tắt dùng các lệnh sau:
-
-```bash
-docker compose down        # tắt nhưng giữ lại dữ liệu
-docker compose down -v     # tắt và xóa sạch dữ liệu
-```
-
-### Cách 2: Chạy trực tiếp trên máy 
-
-Yêu cầu máy cài JDK 21, Maven và PostgreSQL.
-
-**Bước 1: Chuẩn bị database** 
-
-Nếu chưa cài PostgreSQL, có thể dùng Docker để chạy riêng database:
-
-```bash
-docker compose up -d db
-```
-
-Nếu dùng Postgres có sẵn trên máy thì tạo database `ktpm_chat`. Mặc định app kết nối qua `localhost:5432` với user `postgres` và pass `123`. Nếu cấu hình máy khác thì set lại các biến môi trường như sau:
-
-```bash
-export DB_HOST=localhost
-export DB_PORT=5432
-export DB_NAME=ktpm_chat
-export DB_USER=postgres
-export DB_PASSWORD=123
-```
-
-**Bước 2: Build và chạy ứng dụng**
-
-Đơn giản nhất là mở project bằng IDE rồi chạy trực tiếp file `App.java`.
-Nếu muốn build và chạy bằng terminal như sau:
-
-```bash
-mvn clean package dependency:copy-dependencies -DincludeScope=runtime -DskipTests
-java -cp "target/ktpm-chat-1.0.0-SNAPSHOT.jar;target/dependency/*" dev.ktpm.App
-```
-
-> Lưu ý: Trên Linux/macOS, đổi dấu `;` trong tham số  `-cp` thành dấu `:`.
-
-**Bước 3: Truy cập và kiểm tra** 
-
-* Giao diện chính: http://localhost:8080.
-* Kiểm tra trạng thái server: http://localhost:8080/api/health (nếu trả về  `OK` là server hoạt động bình thường).
+- Hệ thống hiện có một số giới hạn, ví dụ giới hạn số tin nhắn trả về mỗi lần tải và dung lượng tệp. Pha 2 có thể dự đoán hệ thống cần phục vụ bao nhiêu người dùng đồng thời và API cần phản hồi nhanh đến mức nào, rồi dùng kiểm thử tải để đo xem có đạt không.
+  > VD: Với 50 người dùng đồng thời, 95% yêu cầu tải lịch sử tin nhắn phản hồi dưới 500 ms.
+- Hiện tại, `GET /api/health` chỉ trả về `OK` nếu yêu cầu đến được ứng dụng. Nếu không thành công có thể trả về thêm thành phần bị lỗi.
+- Nếu người dùng mất kết nối, hệ thống hiện không phát lại các sự kiện đã bỏ lỡ. Client có thể kết nối lại, nhưng khoảng thời gian bị ngắt vẫn có thể làm giao diện thiếu tin nhắn hoặc cập nhật.
+- Thêm automated tests and a CI check.

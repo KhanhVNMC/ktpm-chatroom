@@ -191,6 +191,8 @@ ktpm-chatroom/
 
 ## 7. Vấn đề có thể cải tiến
 
+- Hiện tại, hệ thống được thiết kế hoàn toàn dựa trên cơ sở dữ liệu và chưa áp dụng cơ chế bộ nhớ đệm cho hot path; mọi yêu cầu đều được truy vấn trực tiếp đến cơ sở dữ liệu. Do đó, bất kỳ sự suy giảm hiệu năng nào của cơ sở dữ liệu cũng có thể làm ảnh hưởng đến hiệu năng chung của toàn hệ thống. Trong pha 2, có thể dtriển khai cơ chế bộ nhớ đệm trong bộ nhớ (in-memory caching) hoặc sử dụng Redis cho FAP (Frequently Accessed Paths)
+
 - Hệ thống hiện có một số giới hạn, ví dụ giới hạn số tin nhắn trả về mỗi lần tải và dung lượng tệp. Pha 2 có thể dự đoán hệ thống cần phục vụ bao nhiêu người dùng đồng thời và API cần phản hồi nhanh đến mức nào, rồi dùng kiểm thử tải để đo xem có đạt không.
   > VD: Với 50 người dùng đồng thời, 95% yêu cầu tải lịch sử tin nhắn phản hồi dưới 500 ms.
   

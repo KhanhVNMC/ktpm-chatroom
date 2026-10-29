@@ -139,8 +139,12 @@ Permission bits:
 | `ROOM_DELETED` | Phòng chat bị xóa |
 | `USER_UPDATED` | Thông tin người dùng thay đổi |
 
+## 4. Database 
 
-## 4. Project Structure
+<img width="1398" height="857" alt="diagram" src="https://github.com/user-attachments/assets/8408fc5a-da3a-4fd5-ac11-e46fd3297f84" />
+
+
+## 5. Project Structure
 
 ```text
 ktpm-chatroom/
@@ -169,7 +173,7 @@ ktpm-chatroom/
 ├── plan.adml                      Project plan
 └── README.md                      Project overview and API documentation
 ```
-## 5. Technology Used
+## 6. Technology Used
 
 | Layer | Technology | Purpose |
 |---|---|---|
@@ -185,10 +189,13 @@ ktpm-chatroom/
 |       |            |         |
 
 
-## 6. Vấn đề có thể cải tiến
+## 7. Vấn đề có thể cải tiến
 
 - Hệ thống hiện có một số giới hạn, ví dụ giới hạn số tin nhắn trả về mỗi lần tải và dung lượng tệp. Pha 2 có thể dự đoán hệ thống cần phục vụ bao nhiêu người dùng đồng thời và API cần phản hồi nhanh đến mức nào, rồi dùng kiểm thử tải để đo xem có đạt không.
   > VD: Với 50 người dùng đồng thời, 95% yêu cầu tải lịch sử tin nhắn phản hồi dưới 500 ms.
+  
 - Hiện tại, `GET /api/health` chỉ trả về `OK` nếu yêu cầu đến được ứng dụng. Nếu không thành công có thể trả về thêm thành phần bị lỗi.
+
 - Nếu người dùng mất kết nối, hệ thống hiện không phát lại các sự kiện đã bỏ lỡ. Client có thể kết nối lại, nhưng khoảng thời gian bị ngắt vẫn có thể làm giao diện thiếu tin nhắn hoặc cập nhật.
+
 - Thêm automated tests and a CI check.

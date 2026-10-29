@@ -42,7 +42,7 @@ public class ChatRoomEntity {
 	@Column(name = "is_public", nullable = false)
 	private boolean isPublic;
 	
-	// null = ko có invite code (cái này chỉ dùng cho phòng private)
+	// null = no invite code (private rooms only)
 	@Column(name = "invite_code", unique = true)
 	private String inviteCode;
 	

@@ -4,7 +4,6 @@ import java.util.UUID;
 
 import dev.ktpm.consts.MemberAction;
 import dev.ktpm.consts.RealtimeEventType;
-import dev.ktpm.service.IAuthenticationService;
 import dev.ktpm.service.IRoomMemberService;
 import dev.ktpm.service.IUserService;
 import io.javalin.http.Context;
@@ -12,16 +11,14 @@ import io.javalin.router.JavalinDefaultRoutingApi;
 
 public class RoomMemberController {
 	private final IRoomMemberService memberService;
-	private final IAuthenticationService authService;
 	private final IUserService userService;
 	private final SSEventDispatcher hub;
 	
 	public RoomMemberController(
-		IRoomMemberService memberService, IAuthenticationService authService,
+		IRoomMemberService memberService,
 		IUserService userService, SSEventDispatcher hub
 	) {
 		this.memberService = memberService;
-		this.authService = authService;
 		this.userService = userService;
 		this.hub = hub;
 	}
@@ -38,7 +35,7 @@ public class RoomMemberController {
 		UUID requester = Sputnik.authenticatedUser(ctx);
 		var members = memberService.listMembers(requester, UUID.fromString(ctx.pathParam("id"))).stream()
 		.map(m -> {
-			var json = Sputnik.user(userService.getPublicUser(requester, m.userUUID()));
+			var json = Sputnik.user(userService.getUser(m.userUUID()));
 			json.put("joined_at", m.joinedAt());
 			json.put("permission_bits", m.permissionBits());
 			json.put("status_bits", m.statusBits());
@@ -63,7 +60,9 @@ public class RoomMemberController {
 
 		// kick/ban target isnt a member anymore so send it to them separately
 		hub.sendToRoom(roomUUID, action.event, Sputnik.obj(
-			"room_uuid", roomUUID, "user_uuid", target, "actor_uuid", actor,
+			"room_uuid", roomUUID, 
+			"user_uuid", target, 
+			"actor_uuid", actor,
 			"reason", Sputnik.text(Sputnik.body(ctx), "reason")
 		), target);
 		ctx.json(Sputnik.obj());
@@ -80,7 +79,10 @@ public class RoomMemberController {
 		}
 		memberService.setPermissions(actor, roomUUID, target, bits.asInt());
 		hub.sendToRoom(roomUUID, RealtimeEventType.MEMBER_PERMISSIONS_CHANGED, Sputnik.obj(
-			"room_uuid", roomUUID, "user_uuid", target, "actor_uuid", actor, "permission_bits", bits.asInt()
+			"room_uuid", roomUUID, 
+			"user_uuid", target, 
+			"actor_uuid", actor, 
+			"permission_bits", bits.asInt()
 		));
 		ctx.json(Sputnik.obj());
 	}
@@ -92,7 +94,9 @@ public class RoomMemberController {
 		UUID newOwner = UUID.fromString(Sputnik.require(Sputnik.body(ctx), "new_owner"));
 		memberService.transferOwnership(actor, roomUUID, newOwner);
 		hub.sendToRoom(roomUUID, RealtimeEventType.OWNER_TRANSFERRED, Sputnik.obj(
-			"room_uuid", roomUUID, "old_owner", actor, "new_owner", newOwner
+			"room_uuid", roomUUID, 
+			"old_owner", actor, 
+			"new_owner", newOwner
 		));
 		ctx.json(Sputnik.obj());
 	}

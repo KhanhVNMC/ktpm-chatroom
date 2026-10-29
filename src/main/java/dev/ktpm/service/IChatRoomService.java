@@ -17,7 +17,7 @@ public interface IChatRoomService {
 	
 	int getMemberCount(UUID roomUUID);
 	
-	// private room ko truyền inviteCode thì tự sinh. Trả về room đã tạo
+	// private + no inviteCode = we gen one, returns the created room
 	ChatRoom createRoom(UUID owner, String name, String motd, boolean isPublic, Optional<String> inviteCode);
 	
 	void joinRoom(UUID userUUID, UUID roomUUID, Optional<String> inviteCode);

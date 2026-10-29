@@ -16,9 +16,9 @@ public interface IChatRoomRepository {
 	void delete(UUID roomUUID);
 	
 	Optional<ChatRoom> getByInviteCode(String inviteCode);
-
+	
 	List<ChatRoom> listPublicRooms(int limit);
-
+	
 	// rooms the user is currently in (isInRoom)
 	List<ChatRoom> listJoinedRooms(UUID userUUID, int limit);
 }

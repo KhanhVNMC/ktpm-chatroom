@@ -35,8 +35,10 @@ services:
     volumes:
       - usercontent:/app/usercontent
       - serveravatars:/app/serveravatars
+      - useravatars:/app/useravatars
 
 volumes:
   postgres_data:
   usercontent:
   serveravatars:
+  useravatars:

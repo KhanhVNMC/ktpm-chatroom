@@ -49,7 +49,6 @@ Hệ thống CHATROOM: Hệ thống phòng chat trực tuyến hỗ trợ nhiề
 ### Tệp tải lên (Assets)
 | Method | Endpoint | Mô tả | Input | Phản hồi thành công |
 | :--- | :--- | :--- | :--- | :--- |
-| `POST` | `/api/assets` | Tải một tệp lên server | Nội dung tệp, tên tệp | `201`, id và đường dẫn của tệp |
 | `GET` | `/api/assets/{id}` | Tải tệp đã tải lên |   | `200`, nội dung tệp |
 
 ### Kiểm tra trạng thái hệ thống
@@ -65,6 +64,9 @@ Hệ thống CHATROOM: Hệ thống phòng chat trực tuyến hỗ trợ nhiề
 | `POST` | `/api/auth/logout` | Đăng xuất khỏi hệ thống |   | `200`, `{}` |
 | `GET` `PATCH` | `/api/auth/me` | Lấy/Đổi thông tin cá nhân của người dùng hiện tại |   | Thông tin user |
 | `GET` | `/api/user/{id}` | Lấy thông tin của một người dùng bất kỳ |   | `200`, thông tin người dùng |
+| `GET` | `/api/user/{id}/avatar` | Lấy ảnh đại diện của người dùng |   | `200`, tệp ảnh |
+| `PUT` | `/api/user/me/avatar` | Đặt ảnh đại diện (chỉ nhận ảnh) | Nội dung tệp, tên tệp | `200`, thông tin người dùng |
+| `DELETE` | `/api/user/me/avatar` | Xóa ảnh đại diện |   | `200`, thông tin người dùng |
 
 
 ### Quản lý Thành viên (Room members)

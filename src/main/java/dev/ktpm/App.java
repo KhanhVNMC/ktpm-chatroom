@@ -36,53 +36,55 @@ public class App {
 		var assets = new JPAAttachmentAssetRepository(hibernate);
 		
 		var authService = new AuthenticationService(users, credentials, sessions);
-		// uploads live on the filesystem: usercontent/<id>.<ext>, serveravatars/<room uuid>.<ext>
-		var assetService = new AssetService(assets, Path.of("usercontent"), Path.of("serveravatars"));
+		// uploads live on the server fs usercontent, serveravatars and useravatars
+		var assetService = new AssetService(assets, Path.of("usercontent"), Path.of("serveravatars"), Path.of("useravatars"));
 		var userService = new UserService(users, assetService);
 		var roomService = new ChatRoomService(rooms, memberships, users, messages, assetService);
 		var memberService = new RoomMemberService(rooms, memberships, users);
 		var messageService = new ChatMessageService(messages, memberships, rooms, assetService);
 		var hub = new SSEventDispatcher(memberships);
-
+		
 		var j = Javalin.create(config -> {
 			config.jsonMapper(new JavalinJackson(new ObjectMapper(), false));
 			config.http.maxRequestSize = 40L * 1024 * 1024;
-			config.staticFiles.add("/public", Location.CLASSPATH, java.util.Set.of());
-
+			config.staticFiles.add("/public", Location.CLASSPATH);
+			
 			config.routes.before(
-					"/api/*",
-					new AuthenticationMiddleware(authService).handler()
+				"/api/*",
+				new AuthenticationMiddleware(authService).handler()
 			);
-
+			
+			// wraps all exceptions in a neat lil bwotie so the api dont
+			// expose the entire server stack trace 4 the world to look at
 			config.routes.exception(APIException.class, (exception, ctx) -> {
 				ctx.status(exception.status);
 				ctx.json(Sputnik.obj(
-						"error_message", exception.getMessage()
+					"error_message", exception.getMessage()
 				));
 			});
-
+			
 			config.routes.get("/api/health", ctx -> ctx.result("OK"));
-
+			
 			new AuthController(authService, userService, hub).registerRoutes(config.routes);
-			new UserController(userService, authService, hub).registerRoutes(config.routes);
-			new AssetController(assetService, authService).registerRoutes(config.routes);
+			new UserController(userService, assetService, hub).registerRoutes(config.routes);
+			new AssetController(assetService).registerRoutes(config.routes);
 			new ChatRoomController(
-					roomService, authService, userService, assetService, hub
+				roomService, userService, assetService, hub
 			).registerRoutes(config.routes);
 			new RoomMemberController(
-					memberService, authService, userService, hub
+				memberService, userService, hub
 			).registerRoutes(config.routes);
 			new ChatMessageController(
-					messageService, authService, userService, hub
+				messageService, userService, hub
 			).registerRoutes(config.routes);
-			new EventController(authService, hub).registerRoutes(config.routes);
+			new EventController(hub).registerRoutes(config.routes);
 		});
-
-		java.lang.Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+		
+		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
 			j.stop();
 			hibernate.close();
 		}, "application-shutdown"));
-
+		
 		j.start(8080);
 	}
 }

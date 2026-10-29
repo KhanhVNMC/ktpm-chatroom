@@ -22,5 +22,5 @@ public interface IChatMessageRepository {
 	void delete(UUID messageUUID);
 	
 	// delete every message of the room, returns their attachments so the assets can be cleaned
-	List<URI> deleteAllInRoom(UUID roomUUID);
+	List<URI> deleteAllRoomMessages(UUID roomUUID);
 }

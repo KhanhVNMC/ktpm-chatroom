@@ -21,7 +21,7 @@ COPY --from=build /app/target/ktpm-chat-1.0.0-SNAPSHOT.jar app.jar
 COPY --from=build /app/target/dependency ./lib
 
 # Tạo sẵn 2 thư mục chứa ảnh/file upload của user trong container
-RUN mkdir -p usercontent serveravatars
+RUN mkdir -p usercontent serveravatars useravatars
 
 EXPOSE 8080
 

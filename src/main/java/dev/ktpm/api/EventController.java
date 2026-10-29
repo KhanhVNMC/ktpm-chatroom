@@ -2,17 +2,14 @@ package dev.ktpm.api;
 
 import java.util.UUID;
 
-import dev.ktpm.service.IAuthenticationService;
 import io.javalin.http.Context;
 import io.javalin.http.sse.SseHandler;
 import io.javalin.router.JavalinDefaultRoutingApi;
 
 public class EventController {
-	private final IAuthenticationService authService;
 	private final SSEventDispatcher dispatcher;
 	
-	public EventController(IAuthenticationService authService, SSEventDispatcher dp) {
-		this.authService = authService;
+	public EventController(SSEventDispatcher dp) {
 		this.dispatcher = dp;
 	}
 	
@@ -27,7 +24,7 @@ public class EventController {
 		}
 		//Middleware sẽ xử lý authentication trước đó
 		UUID user = Sputnik.authenticatedUser(ctx);
-
+		
 		String accept = ctx.header("Accept");
 		if (accept == null || !accept.contains("text/event-stream")) {
 			throw new APIException(406, "Accept: text/event-stream is required");

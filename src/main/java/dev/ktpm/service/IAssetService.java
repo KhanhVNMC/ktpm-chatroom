@@ -18,9 +18,6 @@ public interface IAssetService {
 	
 	Optional<AttachmentAsset> get(UUID assetUUID);
 	
-	// asset must exist and be an image (user avatars), throws otherwise
-	UUID requireImage(UUID assetUUID);
-	
 	void delete(UUID assetUUID);
 	
 	// delete the assets the URIs point to (anything not /api/assets/... is ignored)
@@ -29,7 +26,11 @@ public interface IAssetService {
 	// write room avatar to serveravatars/<room uuid>.<ext>, replaces the old one. images only
 	Path saveRoomAvatar(UUID roomUUID, byte[] data, String originalName);
 	
-	void deleteRoomAvatar(Path avatar);
+	// write user avatar to useravatars/<user uuid>.<ext>, replaces the old one. images only
+	Path saveUserAvatar(UUID userUUID, byte[] data, String originalName);
+	
+	// works for both room and user avatars
+	void deleteAvatar(Path avatar);
 	
 	// content type guessed from the extension
 	String contentType(Path file);

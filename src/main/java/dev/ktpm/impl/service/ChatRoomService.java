@@ -5,7 +5,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import dev.ktpm.api.dto.RoomOverviewResponse;
-import dev.ktpm.consts.RoomMemberStatus;
+import dev.ktpm.consts.RoomMemberPunishStatus;
 import dev.ktpm.consts.RoomPermissions;
 import dev.ktpm.model.ChatRoom;
 import dev.ktpm.model.RoomMembership;
@@ -19,13 +19,13 @@ import dev.ktpm.service.IChatRoomService;
 
 public class ChatRoomService implements IChatRoomService {
 	private static final String INVITE_CODE_PATTERN = "[A-Za-z0-9_-]{4,32}";
-
+	
 	private final IChatRoomRepository chatRoomRepo;
 	private final IRoomMembershipRepository roomMembershipRepo;
 	private final IUserRepository userRepo;
 	private final IChatMessageRepository chatMessageRepo;
 	private final IAssetService assetService;
-
+	
 	public ChatRoomService(
 		IChatRoomRepository chatRoomRepo,
 		IRoomMembershipRepository roomMembershipRepo,
@@ -39,7 +39,7 @@ public class ChatRoomService implements IChatRoomService {
 		this.chatMessageRepo = chatMessageRepo;
 		this.assetService = assetService;
 	}
-
+	
 	@Override
 	public ChatRoom getRoom(UUID roomUUID) {
 		if (roomUUID == null) {
@@ -47,7 +47,7 @@ public class ChatRoomService implements IChatRoomService {
 		}
 		return chatRoomRepo.get(roomUUID).orElseThrow(() -> new IllegalArgumentException("Room not found"));
 	}
-
+	
 	@Override
 	public List<ChatRoom> listPublicRooms(UUID requester, int limit) {
 		if (requester != null && userRepo.get(requester).isEmpty()) {
@@ -55,7 +55,7 @@ public class ChatRoomService implements IChatRoomService {
 		}
 		return chatRoomRepo.listPublicRooms(normalizeLimit(limit));
 	}
-
+	
 	@Override
 	public List<ChatRoom> listJoinedRooms(UUID requester, int limit) {
 		if (requester == null || userRepo.get(requester).isEmpty()) {
@@ -63,12 +63,12 @@ public class ChatRoomService implements IChatRoomService {
 		}
 		return chatRoomRepo.listJoinedRooms(requester, normalizeLimit(limit));
 	}
-
+	
 	@Override
 	public int getMemberCount(UUID roomUUID) {
 		return roomMembershipRepo.countMembers(roomUUID);
 	}
-
+	
 	@Override
 	public ChatRoom createRoom(UUID owner, String name, String motd, boolean isPublic, Optional<String> inviteCode) {
 		if (owner == null || userRepo.get(owner).isEmpty()) {
@@ -76,41 +76,46 @@ public class ChatRoomService implements IChatRoomService {
 		}
 		String roomName = requireName(name);
 		String roomMotd = requireMotd(motd);
-
+		
 		// public rooms dont need a code
 		String code = null;
 		if (!isPublic) {
 			code = inviteCode.filter(c -> !c.isBlank()).map(String::trim).orElseGet(this::generateInviteCode);
-			requireFreeInviteCode(code);
+			this.requireFreeInviteCode(code);
 		}
 		ChatRoom room = chatRoomRepo.create(new ChatRoom(
-			UUID.randomUUID(), owner, roomName, roomMotd, null, System.currentTimeMillis(), isPublic, code
+			UUID.randomUUID(), owner, 
+			roomName, roomMotd, null, // no avatar yet
+			System.currentTimeMillis(), isPublic, code
 		));
-
-		// owner có full quyền
+		
+		// the first user, the owner, gets ALL all perms
 		roomMembershipRepo.create(new RoomMembership(
-			room.uuid(), owner, room.createdAt(), RoomPermissions.ALL, 0, true
+			room.uuid(), owner, room.createdAt(), 
+			RoomPermissions.ALL, 
+			RoomMemberPunishStatus.NONE, 
+			true
 		));
 		return room;
 	}
-
+	
 	@Override
 	public void joinRoom(UUID userUUID, UUID roomUUID, Optional<String> inviteCode) {
-		ChatRoom room = getRoom(roomUUID);
-		// phòng private: phải có invite code đúng
+		ChatRoom room = this.getRoom(roomUUID);
+		// to join private room, you need the right invite code
 		if (!room.isPublic() && (room.inviteCode() == null || !room.inviteCode().equals(inviteCode.orElse(null)))) {
 			throw new IllegalStateException("This is a private room, you need a valid invite code to join");
 		}
-		join(userUUID, room);
+		this.join(userUUID, room);
 	}
-
+	
 	@Override
 	public ChatRoom joinByInviteCode(UUID userUUID, String inviteCode) {
-		ChatRoom room = findByInviteCode(inviteCode);
-		join(userUUID, room);
+		ChatRoom room = this.findByInviteCode(inviteCode);
+		this.join(userUUID, room);
 		return room;
 	}
-
+	
 	@Override
 	public void leaveRoom(UUID userUUID, UUID roomUUID, boolean silentLeave, Optional<String> reason) {
 		if (userUUID == null || roomUUID == null) {
@@ -119,26 +124,21 @@ public class ChatRoomService implements IChatRoomService {
 		if (userRepo.get(userUUID).isEmpty()) {
 			throw new IllegalArgumentException("User not found");
 		}
-		ChatRoom room = getRoom(roomUUID);
-
+		ChatRoom room = this.getRoom(roomUUID);
+		
 		// banned people still have a relation but isInRoom = false, so they count as not in the room
-		if (!isInRoom(roomUUID, userUUID)) {
+		if (!this.isInRoom(roomUUID, userUUID)) {
 			throw new IllegalStateException("User is not a member of this room");
 		}
-
+		
 		// owner has to transfer ownership or delete the room
 		if (room.owner().equals(userUUID)) {
 			throw new IllegalStateException("Room owner cannot leave the room");
 		}
-
+		
 		roomMembershipRepo.delete(roomUUID, userUUID);
-
-		/*
-		 * silentLeave và reason chưa có luồng logic trong persistence layer,
-		 * nên chưa thêm vô.
-		 */
 	}
-
+	
 	@Override
 	public List<UUID> deleteRoom(UUID requesterUUID, UUID roomUUID) {
 		if (requesterUUID == null || roomUUID == null) {
@@ -147,21 +147,20 @@ public class ChatRoomService implements IChatRoomService {
 		if (userRepo.get(requesterUUID).isEmpty()) {
 			throw new IllegalArgumentException("Requester not found");
 		}
-		ChatRoom room = getRoom(roomUUID);
+		ChatRoom room = this.getRoom(roomUUID);
 		if (!room.owner().equals(requesterUUID)) {
 			throw new IllegalStateException("Only the room owner can delete the room");
 		}
-
+		
 		List<UUID> members = roomMembershipRepo.getMemberUUIDs(roomUUID);
-
 		// clean up child -> parent: messages (+ attachments) -> memberships (banned ones too) -> room
-		assetService.deleteAll(chatMessageRepo.deleteAllInRoom(roomUUID));
+		assetService.deleteAll(chatMessageRepo.deleteAllRoomMessages(roomUUID));
 		roomMembershipRepo.deleteAllInRoom(roomUUID);
 		chatRoomRepo.delete(roomUUID);
-		assetService.deleteRoomAvatar(room.avatar());
+		assetService.deleteAvatar(room.avatar());
 		return members;
 	}
-
+	
 	@Override
 	public RoomOverviewResponse getOverview(UUID requester, UUID roomUUID) {
 		if (roomUUID == null) {
@@ -170,15 +169,16 @@ public class ChatRoomService implements IChatRoomService {
 		if (requester != null && userRepo.get(requester).isEmpty()) {
 			throw new IllegalArgumentException("Requester not found");
 		}
-		ChatRoom room = getRoom(roomUUID);
-
-		Optional<RoomMembership> membership = requester == null
-			? Optional.empty() : roomMembershipRepo.get(roomUUID, requester).filter(RoomMembership::isInRoom);
+		ChatRoom room = this.getRoom(roomUUID);
+		
+		Optional<RoomMembership> membership = requester == null ? Optional.empty() : 
+			roomMembershipRepo.get(roomUUID, requester).filter(RoomMembership::isInRoom)
+		;
 		if (!room.isPublic() && membership.isEmpty()) {
 			throw new IllegalStateException("You are not a member of this private room");
 		}
 		boolean seeInvite = membership.map(m -> m.can(RoomPermissions.MANAGE_ROOM)).orElse(false);
-		return buildOverview(room, true, seeInvite);
+		return this.buildOverview(room, true, seeInvite);
 	}
 
 	@Override
@@ -210,7 +210,7 @@ public class ChatRoomService implements IChatRoomService {
 	@Override
 	public ChatRoom removeAvatar(UUID actor, UUID roomUUID) {
 		ChatRoom room = requireManageable(actor, roomUUID);
-		assetService.deleteRoomAvatar(room.avatar());
+		assetService.deleteAvatar(room.avatar());
 		return chatRoomRepo.update(new ChatRoom(
 			room.uuid(), room.owner(), room.name(), room.motd(),
 			null, room.createdAt(), room.isPublic(), room.inviteCode()
@@ -226,11 +226,12 @@ public class ChatRoomService implements IChatRoomService {
 		String code = inviteCode.filter(c -> !c.isBlank()).map(String::trim).orElseGet(this::generateInviteCode);
 		requireFreeInviteCode(code);
 		return chatRoomRepo.update(new ChatRoom(
-			room.uuid(), room.owner(), room.name(), room.motd(),
-			room.avatar(), room.createdAt(), room.isPublic(), code
+			room.uuid(), room.owner(), 
+			room.name(), room.motd(), room.avatar(), 
+			room.createdAt(), room.isPublic(), code
 		));
 	}
-
+	
 	// a ban keeps the relation so they cant rejoin to dodge it, they need an unban (relation gets deleted) before joining again
 	private void join(UUID userUUID, ChatRoom room) {
 		if (userUUID == null) {
@@ -241,7 +242,7 @@ public class ChatRoomService implements IChatRoomService {
 		}
 		Optional<RoomMembership> existing = roomMembershipRepo.get(room.uuid(), userUUID);
 		if (existing.isPresent()) {
-			if (existing.get().has(RoomMemberStatus.BANNED)) {
+			if (existing.get().has(RoomMemberPunishStatus.BANNED)) {
 				throw new IllegalStateException("You are banned from this room");
 			}
 			if (existing.get().isInRoom()) {
@@ -252,46 +253,51 @@ public class ChatRoomService implements IChatRoomService {
 		}
 		roomMembershipRepo.create(new RoomMembership(
 			room.uuid(), userUUID, System.currentTimeMillis(), 
-			RoomPermissions.DEFAULT_MEMBER, 0, true
+			RoomPermissions.DEFAULT_MEMBER, 
+			RoomMemberPunishStatus.NONE, 
+			true
 		));
 	}
-
+	
 	private ChatRoom requireManageable(UUID actor, UUID roomUUID) {
 		if (actor == null) {
 			throw new IllegalArgumentException("Actor UUID must not be null");
 		}
-		ChatRoom room = getRoom(roomUUID);
+		ChatRoom room = this.getRoom(roomUUID);
 		RoomMembership membership = roomMembershipRepo.get(roomUUID, actor).filter(RoomMembership::isInRoom)
-			.orElseThrow(() -> new IllegalStateException("User is not a member of this room"));
+			.orElseThrow(() -> new IllegalStateException("User is not a member of this room"))
+		;
 		if (!membership.can(RoomPermissions.MANAGE_ROOM)) {
 			throw new IllegalStateException("You do not have permission to manage this room");
 		}
 		return room;
 	}
-
+	
 	private ChatRoom findByInviteCode(String inviteCode) {
 		if (inviteCode == null || inviteCode.isBlank()) {
 			throw new IllegalArgumentException("Invite code is required");
 		}
 		return chatRoomRepo.getByInviteCode(inviteCode.trim())
-			.orElseThrow(() -> new IllegalArgumentException("Invite code not found"));
+			.orElseThrow(() -> new IllegalArgumentException("Invite code not found"))
+		;
 	}
-
+	
 	private boolean isInRoom(UUID roomUUID, UUID userUUID) {
 		return roomMembershipRepo.get(roomUUID, userUUID).map(RoomMembership::isInRoom).orElse(false);
 	}
-
+	
 	private RoomOverviewResponse buildOverview(ChatRoom room, boolean withMembers, boolean withInviteCode) {
 		User owner = userRepo.get(room.owner())
-			.orElseThrow(() -> new IllegalStateException("Room owner not found"));
-
+			.orElseThrow(() -> new IllegalStateException("Room owner not found"))
+		;
+		
 		List<User> members = !withMembers ? List.of() : roomMembershipRepo
 			.getMemberUUIDs(room.uuid()).stream()
 			.limit(50) // 50 members max, use the list members API for the rest
 			.map(memberUUID -> userRepo.get(memberUUID))
 			.flatMap(Optional::stream)
-			.toList();
-
+		.toList();
+		
 		return new RoomOverviewResponse(
 			room.uuid(), room.name(), room.motd(), room.avatar(), room.createdAt(), room.isPublic(),
 			owner.displayName() != null ? owner.displayName() : owner.username(), owner.uuid(),
@@ -299,18 +305,18 @@ public class ChatRoomService implements IChatRoomService {
 			withInviteCode ? room.inviteCode() : null
 		);
 	}
-
+	
 	private static int normalizeLimit(int limit) {
 		return limit <= 0 ? 50 : Math.min(limit, 100);
 	}
-
+	
 	private static String requireName(String name) {
 		if (name == null || name.isBlank() || name.trim().length() > 64) {
 			throw new IllegalArgumentException("Room name must be 1-64 characters");
 		}
 		return name.trim();
 	}
-
+	
 	private static String requireMotd(String motd) {
 		if (motd == null) {
 			return "";
@@ -320,7 +326,7 @@ public class ChatRoomService implements IChatRoomService {
 		}
 		return motd.trim();
 	}
-
+	
 	private String generateInviteCode() {
 		String code;
 		do {
@@ -328,7 +334,7 @@ public class ChatRoomService implements IChatRoomService {
 		} while (chatRoomRepo.getByInviteCode(code).isPresent());
 		return code;
 	}
-
+	
 	private void requireFreeInviteCode(String code) {
 		if (!code.matches(INVITE_CODE_PATTERN)) {
 			throw new IllegalArgumentException("Invite code must be 4-32 characters (letters, digits, - or _)");

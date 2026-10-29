@@ -12,6 +12,7 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.nio.file.Path;
 import java.util.UUID;
 
 @Entity
@@ -29,8 +30,9 @@ public class UserEntity {
 	@Column(name = "display_name")
 	private String displayName;
 	
-	@Column(name = "avatar_asset")
-	private UUID avatar;
+	// path of the avatar file (useravatars/<user uuid>.<ext>), null = none
+	@Column(name = "avatar_path")
+	private String avatar;
 	
 	// null (users from before this column existed) = OFFLINE
 	@Enumerated(EnumType.STRING)
@@ -45,7 +47,7 @@ public class UserEntity {
 		entity.uuid = model.uuid();
 		entity.username = model.username();
 		entity.displayName = model.displayName();
-		entity.avatar = model.avatar();
+		entity.avatar = model.avatar() == null ? null : model.avatar().toString();
 		entity.presence = model.presence();
 		entity.statusText = model.statusText();
 		return entity;
@@ -53,7 +55,7 @@ public class UserEntity {
 
 	public User toModel() {
 		return new User(
-			uuid, username, displayName, avatar, 
+			uuid, username, displayName, avatar == null ? null : Path.of(avatar), 
 			presence == null ? UserPresence.OFFLINE : presence, statusText
 		);
 	}

@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.UUID;
 
 import dev.ktpm.consts.MemberAction;
-import dev.ktpm.consts.RoomMemberStatus;
+import dev.ktpm.consts.RoomMemberPunishStatus;
 import dev.ktpm.consts.RoomPermissions;
 import dev.ktpm.model.ChatRoom;
 import dev.ktpm.model.RoomMembership;
@@ -17,7 +17,7 @@ public class RoomMemberService implements IRoomMemberService {
 	private final IChatRoomRepository chatRoomRepo;
 	private final IRoomMembershipRepository roomMembershipRepo;
 	private final IUserRepository userRepo;
-
+	
 	public RoomMemberService(
 		IChatRoomRepository chatRoomRepo,
 		IRoomMembershipRepository roomMembershipRepo,
@@ -27,11 +27,11 @@ public class RoomMemberService implements IRoomMemberService {
 		this.roomMembershipRepo = roomMembershipRepo;
 		this.userRepo = userRepo;
 	}
-
+	
 	@Override
 	public List<RoomMembership> listMembers(UUID requester, UUID roomUUID) {
-		getRoom(roomUUID);
-		RoomMembership me = requireInRoom(roomUUID, requester);
+		this.getRoom(roomUUID); // throws if not found
+		RoomMembership me = this.requireInRoom(roomUUID, requester);
 		boolean seeBanned = me.can(RoomPermissions.BAN_MEMBERS);
 		return roomMembershipRepo.getMemberships(roomUUID).stream()
 			.filter(m -> m.isInRoom() || seeBanned)
@@ -48,19 +48,19 @@ public class RoomMemberService implements IRoomMemberService {
 			case BAN, UNBAN -> RoomPermissions.BAN_MEMBERS;
 			case MUTE, UNMUTE -> RoomPermissions.MUTE_MEMBERS;
 		};
-		ChatRoom room = getRoom(roomUUID);
-		authorize(room, actor, target, required);
-
+		ChatRoom room = this.getRoom(roomUUID);
+		this.authorize(room, actor, target, required);
+		
 		var membership = roomMembershipRepo.get(roomUUID, target);
 		switch (action) {
 			case BAN -> {
-				if (membership.isPresent() && membership.get().has(RoomMemberStatus.BANNED)) {
+				if (membership.isPresent() && membership.get().has(RoomMemberPunishStatus.BANNED)) {
 					throw new IllegalArgumentException("Member is already banned");
 				}
 				if (membership.isPresent()) {
 					// keep the relation, just mark banned + left, so leaving and joining back cant dodge the ban
 					roomMembershipRepo.update(membership.get()
-						.withStatus(membership.get().statusBits() | RoomMemberStatus.BANNED)
+						.withStatus(membership.get().statusBits() | RoomMemberPunishStatus.BANNED)
 						.withInRoom(false)
 					);
 				} else {
@@ -70,36 +70,36 @@ public class RoomMemberService implements IRoomMemberService {
 					}
 					roomMembershipRepo.create(new RoomMembership(
 						roomUUID, target, System.currentTimeMillis(), 0, 
-						RoomMemberStatus.BANNED, false
+						RoomMemberPunishStatus.BANNED, false
 					));
 				}
 			}
 			case UNBAN -> {
-				if (membership.isEmpty() || !membership.get().has(RoomMemberStatus.BANNED)) {
+				if (membership.isEmpty() || !membership.get().has(RoomMemberPunishStatus.BANNED)) {
 					throw new IllegalArgumentException("Member is not banned");
 				}
 				// throw the relation away, they join again like a new person
 				roomMembershipRepo.delete(roomUUID, target);
 			}
 			case KICK -> {
-				requireInRoom(roomUUID, target);
+				this.requireInRoom(roomUUID, target);
 				roomMembershipRepo.delete(roomUUID, target); // kick = a normal leave, can still join back
 			}
 			case MUTE -> {
-				RoomMembership m = requireInRoom(roomUUID, target);
-				roomMembershipRepo.update(m.withStatus(m.statusBits() | RoomMemberStatus.MUTED));
+				RoomMembership m = this.requireInRoom(roomUUID, target);
+				roomMembershipRepo.update(m.withStatus(m.statusBits() | RoomMemberPunishStatus.MUTED));
 			}
 			case UNMUTE -> {
-				RoomMembership m = requireInRoom(roomUUID, target);
-				roomMembershipRepo.update(m.withStatus(m.statusBits() & ~RoomMemberStatus.MUTED));
+				RoomMembership m = this.requireInRoom(roomUUID, target);
+				roomMembershipRepo.update(m.withStatus(m.statusBits() & ~RoomMemberPunishStatus.MUTED));
 			}
 		}
 	}
 	
 	@Override
 	public void setPermissions(UUID actor, UUID roomUUID, UUID target, int permissionBits) {
-		ChatRoom room = getRoom(roomUUID);
-		RoomMembership me = authorize(room, actor, target, RoomPermissions.GRANT_PERMISSIONS);
+		ChatRoom room = this.getRoom(roomUUID);
+		RoomMembership me = this.authorize(room, actor, target, RoomPermissions.GRANT_PERMISSIONS);
 		if ((permissionBits & ~RoomPermissions.ALL) != 0) {
 			throw new IllegalArgumentException("Unknown permission bits");
 		}
@@ -112,7 +112,7 @@ public class RoomMemberService implements IRoomMemberService {
 				throw new IllegalStateException("You cannot grant permissions you do not have");
 			}
 		}
-		RoomMembership m = requireInRoom(roomUUID, target);
+		RoomMembership m = this.requireInRoom(roomUUID, target);
 		roomMembershipRepo.update(m.withPermissions(permissionBits));
 	}
 	
@@ -125,12 +125,13 @@ public class RoomMemberService implements IRoomMemberService {
 		if (newOwner == null || newOwner.equals(actor)) {
 			throw new IllegalArgumentException("New owner must be another member");
 		}
-		RoomMembership target = requireInRoom(roomUUID, newOwner);
-		RoomMembership old = requireInRoom(roomUUID, actor);
+		RoomMembership target = this.requireInRoom(roomUUID, newOwner);
+		RoomMembership old = this.requireInRoom(roomUUID, actor);
 		
 		chatRoomRepo.update(new ChatRoom(
 			room.uuid(), newOwner, room.name(), room.motd(),
-			room.avatar(), room.createdAt(), room.isPublic(), room.inviteCode()
+			room.avatar(), room.createdAt(), room.isPublic(), 
+			room.inviteCode()
 		));
 		// new owner gets everything (and gets unmuted), old owner becomes a normal member so they can actually leave
 		roomMembershipRepo.update(target.withPermissions(RoomPermissions.ALL).withStatus(0));
@@ -163,7 +164,7 @@ public class RoomMemberService implements IRoomMemberService {
 			throw new IllegalStateException("You do not have permission to do this");
 		}
 		if (actor.equals(target)) {
-			throw new IllegalArgumentException("You cannot do this to yourself");
+			throw new IllegalArgumentException("You cannot touch yourself"); // pun intended
 		}
 		if (room.owner().equals(target)) {
 			throw new IllegalStateException("You cannot do this to the room owner");

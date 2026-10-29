@@ -4,5 +4,6 @@ target/
 *.log
 usercontent/
 serveravatars/
+useravatars/
 
 .env

@@ -13,12 +13,12 @@ public interface IRoomMembershipRepository {
 	
 	// every relation of the room, banned people included (isInRoom = false)
 	List<RoomMembership> getMemberships(UUID roomUUID);
-
+	
 	// only people currently in the room (isInRoom = true)
 	List<UUID> getMemberUUIDs(UUID roomUUID);
-
+	
 	int countMembers(UUID roomUUID);
-
+	
 	// everyone sharing a room with userUUID (incl. itself), for presence
 	List<UUID> getPeerUUIDs(UUID userUUID);
 	

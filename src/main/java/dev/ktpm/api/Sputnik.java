@@ -1,6 +1,9 @@
 package dev.ktpm.api;
 
+import java.io.IOException;
 import java.net.URI;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Optional;
@@ -14,7 +17,6 @@ import dev.ktpm.api.dto.UploadedFile;
 import dev.ktpm.model.ChatMessage;
 import dev.ktpm.model.ChatRoom;
 import dev.ktpm.model.User;
-import dev.ktpm.service.IAssetService;
 import dev.ktpm.service.IAuthenticationService;
 import dev.ktpm.service.IUserService;
 import io.javalin.http.Context;
@@ -58,7 +60,7 @@ public final class Sputnik {
 
 		return user;
 	}
-
+	
 	public static UUID optionalAuthenticatedUser(Context ctx) {
 		return ctx.attribute(AuthenticationMiddleware.AUTHENTICATED_USER);
 	}
@@ -129,12 +131,12 @@ public final class Sputnik {
 		return Optional.ofNullable(text(body, field)).map(UUID::fromString);
 	}
 	
-	public static String assetUrl(UUID asset) {
-		return asset == null ? null : IAssetService.uri(asset).toString();
-	}
-	
 	public static String roomAvatarUrl(ChatRoom room) {
 		return room.avatar() == null ? null : "/api/chatrooms/" + room.uuid() + "/avatar";
+	}
+	
+	public static String userAvatarUrl(User user) {
+		return user.avatar() == null ? null : "/api/user/" + user.uuid() + "/avatar";
 	}
 	
 	/** raw body (octet-stream) or multipart field "file", file name comes from the X-File-Name header */
@@ -143,7 +145,7 @@ public final class Sputnik {
 		if (multipart != null) {
 			try (var in = multipart.content()) {
 				return new UploadedFile(in.readAllBytes(), multipart.filename());
-			} catch (java.io.IOException e) {
+			} catch (IOException e) {
 				throw new APIException(400, "Cannot read uploaded file");
 			}
 		}
@@ -151,8 +153,8 @@ public final class Sputnik {
 	}
 	
 	/** send a file back. unknown types (not image/video/audio) are forced to download so uploaded html/js cant run */
-	public static void sendFile(Context ctx, java.nio.file.Path file, String contentType) {
-		if (!java.nio.file.Files.isRegularFile(file)) {
+	public static void sendFile(Context ctx, Path file, String contentType) {
+		if (!Files.isRegularFile(file)) {
 			throw new APIException(404, "File not found");
 		}
 		try {
@@ -162,7 +164,7 @@ public final class Sputnik {
 				ctx.header("Content-Disposition", "attachment");
 			}
 			ctx.contentType(contentType);
-			ctx.result(java.nio.file.Files.newInputStream(file));
+			ctx.result(Files.newInputStream(file));
 		} catch (java.io.IOException e) {
 			throw new APIException(404, "File not found");
 		}
@@ -170,15 +172,23 @@ public final class Sputnik {
 	
 	public static Map<String, Object> user(User user) {
 		return obj(
-			"uuid", user.uuid(), "username", user.username(), "display_name", user.displayName(),
-			"avatar", assetUrl(user.avatar()), "presence", user.presence(), "status_text", user.statusText()
+			"uuid", user.uuid(), 
+			"username", user.username(), 
+			"display_name", user.displayName(),
+			"avatar", userAvatarUrl(user), 
+			"presence", user.presence(), 
+			"status_text", user.statusText()
 		);
 	}
 	
 	public static Map<String, Object> room(ChatRoom room, int members) {
 		return obj(
-			"roomUUID", room.uuid(), "name", room.name(), "motd", room.motd(),
-			"avatar", roomAvatarUrl(room), "createdAt", room.createdAt(), "members", members
+			"roomUUID", room.uuid(),
+			"name", room.name(),
+			"motd", room.motd(),
+			"avatar", roomAvatarUrl(room), 
+			"createdAt", room.createdAt(), 
+			"members", members
 		);
 	}
 	
@@ -197,7 +207,7 @@ public final class Sputnik {
 	
 	private static String senderName(IUserService users, UUID userUUID) {
 		try {
-			var user = users.getPublicUser(null, userUUID);
+			var user = users.getUser(userUUID);
 			return user.displayName() != null ? user.displayName() : user.username();
 		} catch (IllegalArgumentException e) {
 			return userUUID.toString(); // user delted

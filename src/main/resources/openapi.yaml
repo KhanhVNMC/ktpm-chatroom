@@ -120,7 +120,7 @@ paths:
     patch:
       tags: [Users]
       summary: Update the authenticated user's profile
-      description: Fields that are not sent are left unchanged. Send a null avatar to remove it.
+      description: Fields that are not sent are left unchanged. The avatar is set through `/api/user/me/avatar`.
       security:
         - BearerAuth: []
       requestBody:
@@ -171,18 +171,18 @@ paths:
         "404":
           $ref: "#/components/responses/NotFound"
 
-  /api/assets:
-    post:
-      tags: [Assets]
-      summary: Upload a file
-      description: Send the raw body with the X-File-Name header, or a multipart form with a file field.
+  /api/user/me/avatar:
+    put:
+      tags: [Users]
+      summary: Set the authenticated user's avatar
+      description: Only image files are accepted. Stored as `useravatars/<user uuid>.<extension>`, replacing the old one.
       security:
         - BearerAuth: []
       parameters:
         - name: X-File-Name
           in: header
           required: false
-          description: Original file name, the extension decides the content type. Ignored for multipart uploads.
+          description: Original file name, the extension decides the image type. Ignored for multipart uploads.
           schema:
             type: string
           example: avatar.png
@@ -202,16 +202,50 @@ paths:
                   format: binary
               required: [file]
       responses:
-        "201":
-          description: File stored
+        "200":
+          description: Updated profile
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/UploadedAsset"
+                $ref: "#/components/schemas/User"
         "400":
           $ref: "#/components/responses/BadRequest"
         "401":
           $ref: "#/components/responses/Unauthorized"
+    delete:
+      tags: [Users]
+      summary: Remove the authenticated user's avatar
+      security:
+        - BearerAuth: []
+      responses:
+        "200":
+          description: Updated profile
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /api/user/{id}/avatar:
+    get:
+      tags: [Users]
+      summary: Get a user's avatar
+      description: Authentication is not required, so the URL can be used directly in `<img>`.
+      parameters:
+        - $ref: "#/components/parameters/UserId"
+      responses:
+        "200":
+          description: Avatar image
+          content:
+            image/*:
+              schema:
+                type: string
+                format: binary
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
 
   /api/assets/{id}:
     get:
@@ -1036,7 +1070,7 @@ components:
           type: string
           format: uri
           nullable: true
-          description: URL of the avatar asset, null when the user has none.
+          description: URL of the avatar (`/api/user/{id}/avatar`), null when the user has none.
         presence:
           $ref: "#/components/schemas/Presence"
         status_text:
@@ -1079,29 +1113,11 @@ components:
         display_name:
           type: string
           description: 1-64 characters.
-        avatar:
-          type: string
-          format: uuid
-          nullable: true
-          description: UUID of an uploaded image asset, null removes the avatar.
         presence:
           $ref: "#/components/schemas/Presence"
         status_text:
           type: string
           description: Up to 128 characters, an empty string clears it.
-    UploadedAsset:
-      type: object
-      properties:
-        asset_uuid:
-          type: string
-          format: uuid
-        url:
-          type: string
-          format: uri
-        name:
-          type: string
-          description: Original file name.
-      required: [asset_uuid, url, name]
     CreateRoomRequest:
       type: object
       properties:

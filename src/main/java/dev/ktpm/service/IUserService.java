@@ -6,10 +6,13 @@ import dev.ktpm.model.User;
 import java.util.UUID;
 
 public interface IUserService {
-	User getPublicUser(UUID requester, UUID target);
-
-	User getPrivateUser(UUID requester);
-
-	// change display name / avatar / presence / status text, returns the updated user
+	User getUser(UUID target);
+	
+	// change display name / presence / status text, returns the updated user
 	User updateProfile(UUID requester, UpdateProfileRequest request);
+	
+	// images only, saved to useravatars/<user uuid>.<ext>
+	User setAvatar(UUID requester, byte[] data, String originalName);
+	
+	User removeAvatar(UUID requester);
 }

@@ -8,6 +8,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 
 import dev.ktpm.model.AttachmentAsset;
@@ -15,9 +16,9 @@ import dev.ktpm.repository.IAttachmentAssetRepository;
 import dev.ktpm.service.IAssetService;
 
 public class AssetService implements IAssetService {
-	public static final long MAX_SIZE = 25L * 1024 * 1024;
+	public static final long MAX_SIZE = 5L * 1024 * 1024; // 5MB
 	private static final String PREFIX = "/api/assets/";
-
+	
 	// extension -> content type (anything not here gets downloaded as octet-stream)
 	private static final Map<String, String> TYPES = Map.ofEntries(
 		Map.entry("png", "image/png"), Map.entry("jpg", "image/jpeg"), Map.entry("jpeg", "image/jpeg"),
@@ -27,18 +28,20 @@ public class AssetService implements IAssetService {
 		Map.entry("m4a", "audio/mp4"), Map.entry("opus", "audio/opus"), Map.entry("pdf", "application/pdf"),
 		Map.entry("txt", "text/plain")
 	);
-	private static final java.util.Set<String> IMAGES = java.util.Set.of("png", "jpg", "jpeg", "gif", "webp");
-
+	private static final Set<String> IMAGES = Set.of("png", "jpg", "jpeg", "gif", "webp");
+	
 	private final IAttachmentAssetRepository assetRepo;
 	private final Path userContentDir;
 	private final Path roomAvatarDir;
-
-	public AssetService(IAttachmentAssetRepository assetRepo, Path userContentDir, Path roomAvatarDir) {
+	private final Path userAvatarDir;
+	
+	public AssetService(IAttachmentAssetRepository assetRepo, Path userContentDir, Path roomAvatarDir, Path userAvatarDir) {
 		this.assetRepo = assetRepo;
 		this.userContentDir = userContentDir;
 		this.roomAvatarDir = roomAvatarDir;
+		this.userAvatarDir = userAvatarDir;
 	}
-
+	
 	@Override
 	public AttachmentAsset upload(byte[] data, String originalName) {
 		checkSize(data);
@@ -47,29 +50,19 @@ public class AssetService implements IAssetService {
 		write(file, data);
 		try {
 			return assetRepo.create(
-					new AttachmentAsset(id, file, safeName(originalName), data.length)
+				new AttachmentAsset(id, file, safeName(originalName), data.length)
 			);
 		} catch (RuntimeException e) {
 			deleteFile(file); // db failed, dont leave an orphan file
 			throw e;
 		}
 	}
-
+	
 	@Override
 	public Optional<AttachmentAsset> get(UUID assetUUID) {
 		return assetRepo.get(assetUUID);
 	}
-
-	@Override
-	public UUID requireImage(UUID assetUUID) {
-		AttachmentAsset asset = assetRepo.get(assetUUID)
-			.orElseThrow(() -> new IllegalArgumentException("Asset not found"));
-		if (!IMAGES.contains(extensionOf(asset.path()))) {
-			throw new IllegalArgumentException("Asset is not an image");
-		}
-		return assetUUID;
-	}
-
+	
 	@Override
 	public void delete(UUID assetUUID) {
 		assetRepo.get(assetUUID).ifPresent(asset -> {
@@ -95,22 +88,16 @@ public class AssetService implements IAssetService {
 
 	@Override
 	public Path saveRoomAvatar(UUID roomUUID, byte[] data, String originalName) {
-		checkSize(data);
-		String ext = extension(originalName);
-		if (!IMAGES.contains(ext)) {
-			throw new IllegalArgumentException("Avatar must be an image (png, jpg, gif, webp)");
-		}
-		Path file = roomAvatarDir.resolve(roomUUID + "." + ext);
-		// extension changed (png -> jpg), old file has to go
-		for (String other : IMAGES) {
-			deleteFile(roomAvatarDir.resolve(roomUUID + "." + other));
-		}
-		write(file, data);
-		return file;
+		return saveAvatar(roomAvatarDir, roomUUID, data, originalName);
 	}
 
 	@Override
-	public void deleteRoomAvatar(Path avatar) {
+	public Path saveUserAvatar(UUID userUUID, byte[] data, String originalName) {
+		return saveAvatar(userAvatarDir, userUUID, data, originalName);
+	}
+
+	@Override
+	public void deleteAvatar(Path avatar) {
 		if (avatar != null) {
 			deleteFile(avatar);
 		}
@@ -119,6 +106,22 @@ public class AssetService implements IAssetService {
 	@Override
 	public String contentType(Path file) {
 		return TYPES.getOrDefault(extensionOf(file), "application/octet-stream");
+	}
+
+	// <dir>/<owner uuid>.<ext>, replaces the old one. images only
+	private static Path saveAvatar(Path dir, UUID ownerUUID, byte[] data, String originalName) {
+		checkSize(data);
+		String ext = extension(originalName);
+		if (!IMAGES.contains(ext)) {
+			throw new IllegalArgumentException("Avatar must be an image (png, jpg, gif, webp)");
+		}
+		Path file = dir.resolve(ownerUUID + "." + ext);
+		// extension changed (png -> jpg), old file has to go
+		for (String other : IMAGES) {
+			deleteFile(dir.resolve(ownerUUID + "." + other));
+		}
+		write(file, data);
+		return file;
 	}
 
 	private static void checkSize(byte[] data) {

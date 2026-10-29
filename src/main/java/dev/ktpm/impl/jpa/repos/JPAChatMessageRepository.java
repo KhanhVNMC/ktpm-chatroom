@@ -76,7 +76,7 @@ public class JPAChatMessageRepository implements IChatMessageRepository {
 	}
 
 	@Override
-	public List<URI> deleteAllInRoom(UUID roomUUID) {
+	public List<URI> deleteAllRoomMessages(UUID roomUUID) {
 		try (var man = runtime.open()) {
 			var all = man.eman.createQuery("""
 				SELECT m FROM ChatMessageEntity m WHERE m.chatRoomUUID = :room_uuid

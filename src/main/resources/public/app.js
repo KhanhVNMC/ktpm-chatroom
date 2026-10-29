@@ -187,14 +187,12 @@ async function saveProfile() {
 async function uploadAvatar() {
   var f = $('meFile').files[0];
   if (!f) return;
-  var up = await api('POST', '/api/assets', undefined, { raw: await fileBytes(f), name: f.name });
-  if (!up.ok) return;
-  var r = await api('PATCH', '/api/user/me', { avatar: up.data.asset_uuid });
+  var r = await api('PUT', '/api/user/me/avatar', undefined, { raw: await fileBytes(f), name: f.name });
   if (r.ok) { S.me = r.data; renderMe(); }
 }
 
 async function removeAvatar() {
-  var r = await api('PATCH', '/api/user/me', { avatar: null });
+  var r = await api('DELETE', '/api/user/me/avatar');
   if (r.ok) { S.me = r.data; renderMe(); }
 }
 

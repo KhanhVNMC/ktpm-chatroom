@@ -74,6 +74,7 @@ public final class AuthenticationMiddleware {
         if (method.equals("GET")) {
             if (path.matches("/api/assets/[^/]+")
                     || path.matches("/api/user/[^/]+")
+                    || path.matches("/api/user/[^/]+/avatar")
                     || path.equals("/api/chatrooms/listing")
                     || path.matches("/api/chatrooms/invite/[^/]+")
                     || path.matches("/api/chatrooms/[^/]+/overview")

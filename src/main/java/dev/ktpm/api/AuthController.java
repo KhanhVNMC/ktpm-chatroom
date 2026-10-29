@@ -45,7 +45,7 @@ public class AuthController {
 		if (sessionID == null) {
 			throw new APIException(401, "Invalid username or password");
 		}
-		announcePresence(authService.authenticate(sessionID));
+		this.announcePresence(authService.authenticate(sessionID));
 		ctx.json(Sputnik.obj("session_id", sessionID));
 	}
 	
@@ -57,18 +57,17 @@ public class AuthController {
 		UUID user = Sputnik.authenticatedUser(ctx);
 		authService.logout(token);
 		dispatcher.disconnectSession(token); // also close the SSE streams of this session
-		announcePresence(user);
+		this.announcePresence(user);
 		ctx.json(Sputnik.obj());
 	}
 	
 	public void getMe(Context ctx) {
-		ctx.json(Sputnik.user(userService.getPrivateUser(Sputnik.authenticatedUser(ctx))));
+		ctx.json(Sputnik.user(userService.getUser(Sputnik.authenticatedUser(ctx))));
 	}
 	
 	// login/logout changes presence so tell everyone sharing a room
 	private void announcePresence(UUID user) {
-		if (user != null) {
-			dispatcher.sendToPeers(user, RealtimeEventType.USER_UPDATED, Sputnik.user(userService.getPrivateUser(user)));
-		}
+		if (user == null) return;
+		dispatcher.sendToPeers(user, RealtimeEventType.USER_UPDATED, Sputnik.user(userService.getUser(user)));
 	}
 }

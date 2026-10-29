@@ -434,7 +434,7 @@ async function applyPerms() {
 
 async function joinCurrent() {
   var code = $('roomCode').value.trim();
-  var r = await api('POST', '/api/chatrooms/' + S.room + '/join', code ? { room_invite_code: code } : {});
+  var r = await api('POST', '/api/chatrooms/' + S.room + '/join', code ? { invite_code: code } : {});
   if (!r.ok) return;
   $('roomCode').value = '';
   refreshLists();

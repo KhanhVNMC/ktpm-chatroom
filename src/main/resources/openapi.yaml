@@ -667,7 +667,7 @@ paths:
             schema:
               $ref: "#/components/schemas/JoinRoomRequest"
             example:
-              room_invite_code: invite-code
+              invite_code: invite-code
       responses:
         "200":
           $ref: "#/components/responses/EmptyObject"
@@ -1293,7 +1293,7 @@ components:
     JoinRoomRequest:
       type: object
       properties:
-        room_invite_code:
+        invite_code:
           type: string
     LeaveRoomRequest:
       type: object

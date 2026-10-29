@@ -31,7 +31,7 @@ GET /api/chatrooms/listing?limit={LIMIT}
 
 POST /api/chatrooms/{chat room UUID}/join
 -> body: { 
-    Optional<String>: room_invite_code
+    Optional<String>: invite_code
 }
 <- body: {
     Optional<String>: error_message

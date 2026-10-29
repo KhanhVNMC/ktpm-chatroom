@@ -62,7 +62,8 @@ Hệ thống CHATROOM: Hệ thống phòng chat trực tuyến hỗ trợ nhiề
 | `POST` | `/api/auth/register` | Đăng ký tài khoản mới | Username, password, displayname | `201`, thông tin người dùng |
 | `POST` | `/api/auth/login` | Đăng nhập vào hệ thống | Username, password | `200`, trả về session id |
 | `POST` | `/api/auth/logout` | Đăng xuất khỏi hệ thống |   | `200`, `{}` |
-| `GET` `PATCH` | `/api/auth/me` | Lấy/Đổi thông tin cá nhân của người dùng hiện tại |   | Thông tin user |
+| `GET` | `/api/auth/me` | Lấy thông tin cá nhân của người dùng hiện tại |   | `200`, thông tin người dùng |
+| `PATCH` | `/api/user/me` | Đổi tên hiển thị, trạng thái, status text | Tên hiển thị, trạng thái, status text | `200`, thông tin người dùng |
 | `GET` | `/api/user/{id}` | Lấy thông tin của một người dùng bất kỳ |   | `200`, thông tin người dùng |
 | `GET` | `/api/user/{id}/avatar` | Lấy ảnh đại diện của người dùng |   | `200`, tệp ảnh |
 | `PUT` | `/api/user/me/avatar` | Đặt ảnh đại diện (chỉ nhận ảnh) | Nội dung tệp, tên tệp | `200`, thông tin người dùng |
@@ -89,6 +90,7 @@ Hệ thống CHATROOM: Hệ thống phòng chat trực tuyến hỗ trợ nhiề
 | `GET` `PUT` `DELETE`| `/api/chatrooms/{id}/avatar` | Lấy/Đổi/Xóa ảnh đại diện của phòng chat |   | `200`, ảnh đại diện |
 | `POST` | `/api/chatrooms/{id}/invite-code` | Đổi mã mời của phòng chat | Mã mời mới | `200`, mã mời và link mời |
 | `GET` | `/api/chatrooms/invite/{code}` | Xem trước phòng chat bằng mã mời |   | `200`, thông tin tổng quan |
+| `POST` | `/api/chatrooms/invite/{code}/join` | Tham gia phòng chat bằng mã mời |   | `200`, ID phòng |
 | `POST` | `/api/chatrooms/{id}/join` | Tham gia vào phòng chat | Mã mời phòng | `200`, `{}` |
 | `POST` | `/api/chatrooms/{id}/leave` | Rời khỏi phòng chat | Rời ẩn danh, lý do | `200`, `{}` |
 
